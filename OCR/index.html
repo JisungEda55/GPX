@@ -43,7 +43,7 @@
       z-index: 1000;
       pointer-events: none;
     }
-    .info-block, .file-block, .ocr-block {
+    .info-block, .file-block, .ocr-block, .final-block {
       background: rgba(0,0,0,0.55);
       border-radius: 10px;
       padding: 10px 14px;
@@ -165,28 +165,46 @@
       background: #fff;
     }
 
+    /* 두근거리는 원 마커 */
     .runner-marker {
-      width: 32px;
-      height: 32px;
+      position: relative;
+      width: 40px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .runner-icon {
-      width: 32px;
-      height: 32px;
+      position: relative;
+      width: 24px;
+      height: 24px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.08s linear;
     }
-    .runner-arrow {
-      width: 0;
-      height: 0;
-      border-left: 6px solid transparent;
-      border-right: 6px solid transparent;
-      border-bottom: 16px solid #00ff00;
-      filter: drop-shadow(0 0 4px #000);
+    .runner-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #00ff00;
+      box-shadow: 0 0 8px rgba(0,255,0,0.9);
+      position: relative;
+      z-index: 2;
+    }
+    .runner-pulse {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,255,0,0.7);
+      animation: pulse 1.2s infinite;
+      box-sizing: border-box;
+      z-index: 1;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(0.7); opacity: 0.9; }
+      70%  { transform: scale(1.25); opacity: 0; }
+      100% { transform: scale(1.25); opacity: 0; }
     }
 
     .ocr-values {
@@ -218,11 +236,36 @@
     }
     .ocr-actions button:disabled{opacity:.4;cursor:default;}
 
-    #summaryArea{
-      margin-top:6px;
-      border-top:1px solid rgba(255,255,255,0.2);
-      padding-top:6px;
+    /* 최종 요약 블록 (Garmin 스타일) */
+    .final-block {
       display:none;
+      min-width: 220px;
+    }
+    .final-title {
+      font-size:13px;
+      opacity:.9;
+      margin-bottom:4px;
+    }
+    .final-main {
+      font-size:34px;
+      font-weight:700;
+      line-height:1;
+      margin-bottom:6px;
+    }
+    .final-main .small {
+      font-size:18px;
+      margin-left:4px;
+    }
+    .final-sub-line {
+      font-size:12px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-top:2px;
+    }
+    .final-sub-label {
+      opacity:.8;
+      min-width:60px;
     }
 
     @media (max-width: 900px) {
@@ -230,7 +273,8 @@
     }
     @media (max-width: 600px) {
       .info-main { font-size: 26px; }
-      .info-block, .file-block, .ocr-block { padding: 8px 10px; }
+      .info-block, .file-block, .ocr-block, .final-block { padding: 8px 10px; }
+      .final-main { font-size: 28px; }
     }
   </style>
 </head>
@@ -239,7 +283,7 @@
   <div id="map"></div>
 
   <div class="top-panel">
-    <!-- 1번 영역: 나중에 숨길 카드 -->
+    <!-- 초기 / 로딩용 정보 카드 -->
     <div class="info-block" id="infoBlock">
       <h1 id="runTitle">러닝 리플레이</h1>
       <div class="info-main">
@@ -253,7 +297,7 @@
     </div>
 
     <!-- GPX 선택 카드 -->
-    <div class="file-block">
+    <div class="file-block" id="gpxCard">
       <label for="gpxFileInput">GPX 파일 선택</label>
       <input type="file" id="gpxFileInput" accept=".gpx" />
       <div class="status" id="statusText">
@@ -261,8 +305,8 @@
       </div>
     </div>
 
-    <!-- 2번 영역: OCR + 통합 요약 표시 카드 -->
-    <div class="ocr-block">
+    <!-- OCR 카드 -->
+    <div class="ocr-block" id="ocrCard">
       <label for="imgInput">운동 요약 스크린샷</label>
       <input type="file" id="imgInput" accept="image/*" />
       <div class="ocr-actions">
@@ -275,16 +319,36 @@
         <div class="ocr-row"><span>OCR 평균 페이스</span><span id="ocrPace">-</span></div>
         <div class="ocr-row"><span>등반 고도</span><span id="ocrElev">-</span></div>
       </div>
+    </div>
 
-      <!-- GPX + OCR 통합 요약 (값 다 로드되면 보여짐) -->
-      <div id="summaryArea" class="ocr-values">
-        <div class="ocr-row"><span>GPX 거리</span><span id="sumGpxDist">-</span></div>
-        <div class="ocr-row"><span>GPX 총 시간</span><span id="sumGpxTime">-</span></div>
-        <div class="ocr-row"><span>GPX 평균 페이스</span><span id="sumGpxPace">-</span></div>
-        <div class="ocr-row"><span>OCR 시간</span><span id="sumOcrTime">-</span></div>
-        <div class="ocr-row"><span>OCR 거리</span><span id="sumOcrDist">-</span></div>
-        <div class="ocr-row"><span>OCR 평균 페이스</span><span id="sumOcrPace">-</span></div>
-        <div class="ocr-row"><span>등반 고도</span><span id="sumOcrElev">-</span></div>
+    <!-- 최종 요약 카드 (값 다 준비되면 이것만 보이게) -->
+    <div class="final-block" id="finalBlock">
+      <div class="final-title" id="finalTitle">운동 요약</div>
+      <div class="final-main">
+        <span id="finalDistance">0.00</span>
+        <span class="small">km</span>
+      </div>
+      <div class="final-sub">
+        <div class="final-sub-line">
+          <span class="final-sub-label">GPX 시간</span>
+          <span id="finalGpxTime">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">GPX 페이스</span>
+          <span id="finalGpxPace">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">OCR 시간</span>
+          <span id="finalOcrTime">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">OCR 페이스</span>
+          <span id="finalOcrPace">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">등반 고도</span>
+          <span id="finalElev">-</span>
+        </div>
       </div>
     </div>
   </div>
@@ -331,6 +395,9 @@
   ).addTo(map);
 
   var infoBlock = document.getElementById("infoBlock");
+  var gpxCard = document.getElementById("gpxCard");
+  var ocrCard = document.getElementById("ocrCard");
+  var finalBlock = document.getElementById("finalBlock");
 
   var statusText = document.getElementById("statusText");
   var distanceText = document.getElementById("distanceText");
@@ -356,8 +423,9 @@
   var playTimer = null;
   var currentIndex = 0;
   var playing = false;
-  var playbackSpeed = 80;
+  var playbackSpeed = 31; // 기존 80ms -> 약 2.6배 빠르게
   var followZoom = 17;
+  var currentHeading = null;
 
   var gpxLoaded = false;
   var ocrLoaded = false;
@@ -530,7 +598,7 @@
 
     var runnerIcon = L.divIcon({
       className: "runner-marker",
-      html: '<div class="runner-icon"><div class="runner-arrow"></div></div>',
+      html: '<div class="runner-icon"><div class="runner-pulse"></div><div class="runner-dot"></div></div>',
       iconSize: [32, 32],
       iconAnchor: [16, 16]
     });
@@ -546,23 +614,6 @@
     }).addTo(map);
   }
 
-  function updateRunnerHeading(idx) {
-    if (!runnerMarker) return;
-    var angle = 0;
-    if (idx < trackPoints.length - 1) {
-      angle = bearingDegrees(trackPoints[idx], trackPoints[idx + 1]);
-    } else if (idx > 0) {
-      angle = bearingDegrees(trackPoints[idx - 1], trackPoints[idx]);
-    }
-    var el = runnerMarker.getElement();
-    if (el) {
-      var inner = el.querySelector(".runner-icon");
-      if (inner) {
-        inner.style.transform = "rotate(" + angle + "deg)";
-      }
-    }
-  }
-
   function updateVisual(idx) {
     idx = Math.max(0, Math.min(idx, trackPoints.length - 1));
     currentIndex = idx;
@@ -575,7 +626,14 @@
     var latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
     partialLayer.setLatLngs(latlngs);
 
-    updateRunnerHeading(idx);
+    // 진행 방향 계산 (다음 포인트 기준)
+    var heading = null;
+    if (idx < trackPoints.length - 1) {
+      heading = bearingDegrees(trackPoints[idx], trackPoints[idx + 1]);
+    } else if (idx > 0) {
+      heading = bearingDegrees(trackPoints[idx - 1], trackPoints[idx]);
+    }
+    currentHeading = heading;
 
     var distM = cumDist[idx];
     var distKm = distM / 1000;
@@ -592,10 +650,22 @@
     totalTimeLabel.textContent = formatTimeShort(totalTime);
 
     if (playing) {
+      var followTarget = L.latLng(center[0], center[1]);
+
+      // 네비게이션 느낌: 진행 방향으로 조금 앞을 바라보도록
+      if (currentHeading != null) {
+        var lookAheadMeters = 60; // 앞쪽으로 60m 정도
+        var rad = currentHeading * Math.PI / 180;
+        var latRad = p.lat * Math.PI / 180;
+        var dLat = (lookAheadMeters * Math.cos(rad)) / 111111;
+        var dLon = (lookAheadMeters * Math.sin(rad)) / (111111 * Math.cos(latRad));
+        followTarget = L.latLng(p.lat + dLat, p.lng + dLon);
+      }
+
       if (map.getZoom() < followZoom) {
-        map.setView(center, followZoom, { animate: true });
+        map.setView(followTarget, followZoom, { animate: true });
       } else {
-        map.panTo(center, { animate: true, duration: 0.08 });
+        map.panTo(followTarget, { animate: true, duration: 0.08 });
       }
     }
   }
@@ -633,29 +703,30 @@
     }
   }
 
-  var summaryArea = document.getElementById("summaryArea");
-  var sumGpxDist = document.getElementById("sumGpxDist");
-  var sumGpxTime = document.getElementById("sumGpxTime");
-  var sumGpxPace = document.getElementById("sumGpxPace");
-  var sumOcrTime = document.getElementById("sumOcrTime");
-  var sumOcrDist = document.getElementById("sumOcrDist");
-  var sumOcrPace = document.getElementById("sumOcrPace");
-  var sumOcrElev = document.getElementById("sumOcrElev");
+  var finalTitle = document.getElementById("finalTitle");
+  var finalDistance = document.getElementById("finalDistance");
+  var finalGpxTime = document.getElementById("finalGpxTime");
+  var finalGpxPace = document.getElementById("finalGpxPace");
+  var finalOcrTime = document.getElementById("finalOcrTime");
+  var finalOcrPace = document.getElementById("finalOcrPace");
+  var finalElev = document.getElementById("finalElev");
 
   function updateSummaryIfReady() {
     if (gpxLoaded && ocrLoaded) {
-      infoBlock.style.display = "none";
-      summaryArea.style.display = "block";
-
       var distKm = totalDist / 1000;
-      sumGpxDist.textContent = distKm.toFixed(2) + " km";
-      sumGpxTime.textContent = formatTime(totalTime);
-      sumGpxPace.textContent = formatPace(totalTime, distKm);
 
-      sumOcrTime.textContent = ocrTime.textContent;
-      sumOcrDist.textContent = ocrDist.textContent;
-      sumOcrPace.textContent = ocrPace.textContent;
-      sumOcrElev.textContent = ocrElev.textContent;
+      finalTitle.textContent = runTitle.textContent;
+      finalDistance.textContent = distKm.toFixed(2);
+      finalGpxTime.textContent = formatTime(totalTime);
+      finalGpxPace.textContent = formatPace(totalTime, distKm);
+      finalOcrTime.textContent = document.getElementById("ocrTime").textContent;
+      finalOcrPace.textContent = document.getElementById("ocrPace").textContent;
+      finalElev.textContent = document.getElementById("ocrElev").textContent;
+
+      infoBlock.style.display = "none";
+      gpxCard.style.display = "none";
+      ocrCard.style.display = "none";
+      finalBlock.style.display = "block";
     }
   }
 
@@ -664,7 +735,9 @@
 
     gpxLoaded = false;
     infoBlock.style.display = "";
-    summaryArea.style.display = "none";
+    gpxCard.style.display = "";
+    ocrCard.style.display = "";
+    finalBlock.style.display = "none";
 
     if (!file) {
       setStatus("파일이 선택되지 않았습니다.", "error");
@@ -733,8 +806,11 @@
     var f = e.target.files[0];
     currentImageFile = f || null;
     ocrLoaded = false;
+
     infoBlock.style.display = "";
-    summaryArea.style.display = "none";
+    gpxCard.style.display = "";
+    ocrCard.style.display = "";
+    finalBlock.style.display = "none";
 
     if (!f) {
       ocrBtn.disabled = true;
