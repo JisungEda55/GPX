@@ -4,12 +4,7 @@
   <meta charset="UTF-8" />
   <title>GPX 러닝 리플레이 + OCR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -20,16 +15,8 @@
       background: #000;
       color: #fff;
     }
-    #app {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-    }
-    #map {
-      width: 100%;
-      height: 100%;
-    }
+    #app { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+    #map { width: 100%; height: 100%; }
 
     .top-panel {
       position: absolute;
@@ -61,24 +48,15 @@
       line-height: 1;
       margin-bottom: 4px;
     }
-    .info-main span.small {
-      font-size: 18px;
-      font-weight: 500;
-      margin-left: 4px;
-    }
-    .info-sub {
-      font-size: 12px;
-      opacity: .9;
-      line-height: 1.4;
-    }
-    .file-block label,
-    .ocr-block label {
+    .info-main .small { font-size: 18px; margin-left: 4px; }
+    .info-sub { font-size: 12px; opacity: .9; line-height: 1.4; }
+
+    .file-block label, .ocr-block label {
       font-size: 12px;
       display: block;
       margin-bottom: 4px;
     }
-    .file-block input[type="file"],
-    .ocr-block input[type="file"] {
+    .file-block input[type="file"], .ocr-block input[type="file"] {
       font-size: 11px;
       max-width: 200px;
     }
@@ -92,9 +70,7 @@
 
     .bottom-panel {
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      left: 0; right: 0; bottom: 0;
       padding: 10px 14px 18px;
       background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0));
       z-index: 1000;
@@ -107,8 +83,7 @@
       pointer-events: auto;
     }
     .play-btn {
-      width: 40px;
-      height: 40px;
+      width: 40px; height: 40px;
       border-radius: 50%;
       border: none;
       background: #fff;
@@ -120,15 +95,8 @@
       cursor: pointer;
       flex-shrink: 0;
     }
-    .play-btn:active {
-      transform: scale(0.96);
-    }
-    .timeline {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
+    .play-btn:active { transform: scale(0.96); }
+    .timeline { flex: 1; display: flex; flex-direction: column; gap: 3px; }
     .time-labels {
       display: flex;
       justify-content: space-between;
@@ -147,8 +115,7 @@
     }
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
+      width: 14px; height: 14px;
       border-radius: 50%;
       background: #fff;
       margin-top: -5px;
@@ -159,8 +126,7 @@
       border-radius: 2px;
     }
     input[type="range"]::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
+      width: 14px; height: 14px;
       border-radius: 50%;
       background: #fff;
     }
@@ -207,23 +173,11 @@
       100% { transform: scale(1.25); opacity: 0; }
     }
 
-    .ocr-values {
-      margin-top: 6px;
-      font-size: 11px;
-    }
-    .ocr-row {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 2px;
-    }
-    .ocr-row span:last-child {
-      font-weight: 600;
-    }
+    .ocr-values { margin-top: 6px; font-size: 11px; }
+    .ocr-row { display: flex; justify-content: space-between; margin-top: 2px; }
+    .ocr-row span:last-child { font-weight: 600; }
     .ocr-actions {
-      display:flex;
-      align-items:center;
-      gap:4px;
-      margin-top:4px;
+      display:flex; align-items:center; gap:4px; margin-top:4px;
     }
     .ocr-actions button{
       padding:3px 8px;
@@ -236,26 +190,19 @@
     }
     .ocr-actions button:disabled{opacity:.4;cursor:default;}
 
-    /* 최종 요약 블록 (Garmin 스타일) */
+    /* 최종 요약 블록 */
     .final-block {
       display:none;
       min-width: 220px;
     }
-    .final-title {
-      font-size:13px;
-      opacity:.9;
-      margin-bottom:4px;
-    }
+    .final-title { font-size:13px; opacity:.9; margin-bottom:4px; }
     .final-main {
       font-size:34px;
       font-weight:700;
       line-height:1;
       margin-bottom:6px;
     }
-    .final-main .small {
-      font-size:18px;
-      margin-left:4px;
-    }
+    .final-main .small { font-size:18px; margin-left:4px; }
     .final-sub-line {
       font-size:12px;
       display:flex;
@@ -263,14 +210,9 @@
       gap:6px;
       margin-top:2px;
     }
-    .final-sub-label {
-      opacity:.8;
-      min-width:60px;
-    }
+    .final-sub-label { opacity:.8; min-width:60px; }
 
-    @media (max-width: 900px) {
-      .top-panel { flex-wrap: wrap; }
-    }
+    @media (max-width: 900px) { .top-panel { flex-wrap: wrap; } }
     @media (max-width: 600px) {
       .info-main { font-size: 26px; }
       .info-block, .file-block, .ocr-block, .final-block { padding: 8px 10px; }
@@ -283,7 +225,6 @@
   <div id="map"></div>
 
   <div class="top-panel">
-    <!-- 초기 / 로딩용 정보 카드 -->
     <div class="info-block" id="infoBlock">
       <h1 id="runTitle">러닝 리플레이</h1>
       <div class="info-main">
@@ -296,7 +237,6 @@
       </div>
     </div>
 
-    <!-- GPX 선택 카드 -->
     <div class="file-block" id="gpxCard">
       <label for="gpxFileInput">GPX 파일 선택</label>
       <input type="file" id="gpxFileInput" accept=".gpx" />
@@ -305,7 +245,6 @@
       </div>
     </div>
 
-    <!-- OCR 카드 -->
     <div class="ocr-block" id="ocrCard">
       <label for="imgInput">운동 요약 스크린샷</label>
       <input type="file" id="imgInput" accept="image/*" />
@@ -321,7 +260,6 @@
       </div>
     </div>
 
-    <!-- 최종 요약 카드 (값 다 준비되면 이것만 보이게) -->
     <div class="final-block" id="finalBlock">
       <div class="final-title" id="finalTitle">운동 요약</div>
       <div class="final-main">
@@ -423,7 +361,7 @@
   var playTimer = null;
   var currentIndex = 0;
   var playing = false;
-  var playbackSpeed = 31; // 기존 80ms -> 약 2.6배 빠르게
+  var playbackSpeed = 50; // 조금 느리게
   var followZoom = 17;
   var currentHeading = null;
 
@@ -491,26 +429,47 @@
     return (brng + 360) % 360;
   }
 
+  // 경로를 더 부드럽게 만들기 위해 포인트를 촘촘하게 분할
+  function densifyTrack(pts, stepMeters) {
+    var result = [];
+    if (!pts.length) return result;
+    result.push({ lat: pts[0].lat, lng: pts[0].lng, tMs: pts[0].tMs });
+
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i-1];
+      var b = pts[i];
+      var segDist = distanceMeters(a, b);
+      if (segDist <= stepMeters) {
+        result.push({ lat: b.lat, lng: b.lng, tMs: b.tMs });
+        continue;
+      }
+      var steps = Math.floor(segDist / stepMeters);
+      for (var s = 1; s <= steps; s++) {
+        var ratio = s / (steps + 1);
+        var lat = a.lat + (b.lat - a.lat) * ratio;
+        var lng = a.lng + (b.lng - a.lng) * ratio;
+        var tMs = a.tMs + (b.tMs - a.tMs) * ratio;
+        result.push({ lat: lat, lng: lng, tMs: tMs });
+      }
+      result.push({ lat: b.lat, lng: b.lng, tMs: b.tMs });
+    }
+    return result;
+  }
+
   function parseGpx(gpxText) {
     var parser = new DOMParser();
     var xml = parser.parseFromString(gpxText, "application/xml");
 
     var errorNode = xml.querySelector("parsererror");
-    if (errorNode) {
-      throw new Error("XML 파싱 오류");
-    }
+    if (errorNode) throw new Error("XML 파싱 오류");
 
     var nameNode = xml.querySelector("trk > name");
-    if (nameNode && nameNode.textContent.trim()) {
-      runTitle.textContent = nameNode.textContent.trim();
-    } else {
-      runTitle.textContent = "GPX 러닝";
-    }
+    runTitle.textContent = nameNode && nameNode.textContent.trim()
+      ? nameNode.textContent.trim()
+      : "GPX 러닝";
 
     var ptsXml = xml.getElementsByTagName("trkpt");
-    if (!ptsXml.length) {
-      throw new Error("trkpt가 없습니다.");
-    }
+    if (!ptsXml.length) throw new Error("trkpt가 없습니다.");
 
     var pts = [];
     var t0 = null;
@@ -536,66 +495,77 @@
       pts.push({ lat: lat, lng: lon, tMs: tMs });
     }
 
-    if (pts.length < 2) {
-      throw new Error("포인트가 너무 적습니다.");
-    }
+    if (pts.length < 2) throw new Error("포인트가 너무 적습니다.");
 
-    if (!allHaveTime) {
-      for (var j = 0; j < pts.length; j++) {
-        pts[j].tMs = j * 1000;
-      }
-      hasTime = false;
-    } else {
-      hasTime = true;
-    }
+    hasTime = allHaveTime;
     return pts;
   }
 
-  function prepareTrack(pts) {
-    trackPoints = pts;
-    cumDist = [0];
-    totalDist = 0;
-
-    for (var i = 1; i < pts.length; i++) {
-      var d = distanceMeters(pts[i-1], pts[i]);
-      totalDist += d;
-      cumDist.push(totalDist);
+  function prepareTrack(rawPts) {
+    // 1) 원본 기준 거리 계산
+    var cumRaw = [0];
+    var totalRaw = 0;
+    for (var i = 1; i < rawPts.length; i++) {
+      var d = distanceMeters(rawPts[i-1], rawPts[i]);
+      totalRaw += d;
+      cumRaw.push(totalRaw);
     }
 
-    totalTime = pts[pts.length - 1].tMs - pts[0].tMs;
+    // 2) 시간 없으면 5분/km 기준으로 생성
+    totalTime = rawPts[rawPts.length - 1].tMs - rawPts[0].tMs;
     if (!hasTime) {
-      var distKm = totalDist / 1000;
+      var distKm = totalRaw / 1000;
       totalTime = distKm * 5 * 60 * 1000;
-      for (var k = 0; k < pts.length; k++) {
-        pts[k].tMs = pts[0].tMs + totalTime * (cumDist[k] / totalDist);
+      for (var k = 0; k < rawPts.length; k++) {
+        rawPts[k].tMs = rawPts[0].tMs + totalTime * (cumRaw[k] / totalRaw);
       }
     }
+
+    // 3) 시간 포함된 경로를 촘촘하게 분할해서 부드럽게
+    var dense = densifyTrack(rawPts, 5); // 약 5m 간격
+
+    // 4) 촘촘한 경로 기준으로 거리/시간 다시 계산
+    trackPoints = dense;
+    cumDist = [0];
+    totalDist = 0;
+    for (var j = 1; j < trackPoints.length; j++) {
+      var dd = distanceMeters(trackPoints[j-1], trackPoints[j]);
+      totalDist += dd;
+      cumDist.push(totalDist);
+    }
+    totalTime = trackPoints[trackPoints.length - 1].tMs - trackPoints[0].tMs;
   }
 
   function resetLayers() {
-    if (routeLayer) {
-      map.removeLayer(routeLayer);
-      routeLayer = null;
-    }
-    if (runnerMarker) {
-      map.removeLayer(runnerMarker);
-      runnerMarker = null;
-    }
-    if (partialLayer) {
-      map.removeLayer(partialLayer);
-      partialLayer = null;
-    }
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    if (runnerMarker) { map.removeLayer(runnerMarker); runnerMarker = null; }
+    if (partialLayer) { map.removeLayer(partialLayer); partialLayer = null; }
   }
 
   function drawRoute() {
     var latlngs = trackPoints.map(function(p){ return [p.lat, p.lng]; });
+
+    // 전체 코스: 연한 회색
     routeLayer = L.polyline(latlngs, {
-      color: "#ff0000",
-      weight: 4,
-      opacity: 0.9
+      color: "#cccccc",
+      weight: 3,
+      opacity: 0.5,
+      lineCap: "round",
+      lineJoin: "round"
     }).addTo(map);
+
     map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
 
+    // 진행 중 코스: 밝은 연두색
+    partialLayer = L.polyline([latlngs[0]], {
+      color: "#00ff66",
+      weight: 6,
+      opacity: 0.9,
+      lineCap: "round",
+      lineJoin: "round"
+    }).addTo(map);
+
+    // 두근거리는 원 마커
     var runnerIcon = L.divIcon({
       className: "runner-marker",
       html: '<div class="runner-icon"><div class="runner-pulse"></div><div class="runner-dot"></div></div>',
@@ -603,15 +573,7 @@
       iconAnchor: [16, 16]
     });
 
-    runnerMarker = L.marker(latlngs[0], {
-      icon: runnerIcon
-    }).addTo(map);
-
-    partialLayer = L.polyline([latlngs[0]], {
-      color: "#ffffff",
-      weight: 3,
-      opacity: 0.7
-    }).addTo(map);
+    runnerMarker = L.marker(latlngs[0], { icon: runnerIcon }).addTo(map);
   }
 
   function updateVisual(idx) {
@@ -626,7 +588,6 @@
     var latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
     partialLayer.setLatLngs(latlngs);
 
-    // 진행 방향 계산 (다음 포인트 기준)
     var heading = null;
     if (idx < trackPoints.length - 1) {
       heading = bearingDegrees(trackPoints[idx], trackPoints[idx + 1]);
@@ -652,9 +613,8 @@
     if (playing) {
       var followTarget = L.latLng(center[0], center[1]);
 
-      // 네비게이션 느낌: 진행 방향으로 조금 앞을 바라보도록
       if (currentHeading != null) {
-        var lookAheadMeters = 60; // 앞쪽으로 60m 정도
+        var lookAheadMeters = 60;
         var rad = currentHeading * Math.PI / 180;
         var latRad = p.lat * Math.PI / 180;
         var dLat = (lookAheadMeters * Math.cos(rad)) / 111111;
@@ -665,7 +625,7 @@
       if (map.getZoom() < followZoom) {
         map.setView(followTarget, followZoom, { animate: true });
       } else {
-        map.panTo(followTarget, { animate: true, duration: 0.08 });
+        map.panTo(followTarget, { animate: true, duration: 0.12 });
       }
     }
   }
@@ -697,10 +657,7 @@
   function pausePlayback() {
     playing = false;
     playBtn.textContent = "▶";
-    if (playTimer) {
-      clearInterval(playTimer);
-      playTimer = null;
-    }
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
   }
 
   var finalTitle = document.getElementById("finalTitle");
@@ -739,10 +696,7 @@
     ocrCard.style.display = "";
     finalBlock.style.display = "none";
 
-    if (!file) {
-      setStatus("파일이 선택되지 않았습니다.", "error");
-      return;
-    }
+    if (!file) { setStatus("파일이 선택되지 않았습니다.", "error"); return; }
     if (!file.name.toLowerCase().endsWith(".gpx")) {
       setStatus("GPX 파일만 선택 가능합니다.", "error");
       return;
