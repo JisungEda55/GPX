@@ -2,173 +2,727 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>운동 요약 OCR 데모</title>
+  <title>GPX 러닝 리플레이 + OCR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
   <style>
-    * { box-sizing:border-box; }
-    html,body {
-      margin:0; padding:0;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-      background:#000; color:#fff;
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #000;
+      color: #fff;
     }
-    .wrap {
-      max-width:480px;
-      margin:0 auto;
-      padding:16px;
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
     }
-    h1 { font-size:20px; margin:0 0 12px; }
-    .card {
-      background:#111;
-      border-radius:14px;
-      padding:14px;
-      margin-bottom:12px;
+    #map {
+      width: 100%;
+      height: 100%;
     }
-    .row { display:flex; justify-content:space-between; margin-bottom:4px; }
-    .label { font-size:13px; opacity:.8; }
-    .value { font-size:18px; font-weight:600; }
-    #preview {
-      width:100%;
-      max-height:260px;
-      object-fit:contain;
-      border-radius:10px;
-      background:#222;
-      margin-bottom:8px;
+
+    .top-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      z-index: 1000;
+      pointer-events: none;
     }
-    #status { font-size:12px; margin-top:4px; opacity:.9; }
-    #rawText {
-      font-family:ui-monospace,Menlo,Consolas,monospace;
-      font-size:11px;
-      white-space:pre-wrap;
-      max-height:220px;
-      overflow:auto;
+    .info-block, .file-block, .ocr-block {
+      background: rgba(0,0,0,0.55);
+      border-radius: 10px;
+      padding: 10px 14px;
+      pointer-events: auto;
+      backdrop-filter: blur(4px);
     }
-    input[type=file] { font-size:12px; }
-    button {
-      padding:6px 12px;
+    .info-block h1 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .info-main {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .info-main span.small {
+      font-size: 18px;
+      font-weight: 500;
+      margin-left: 4px;
+    }
+    .info-sub {
+      font-size: 12px;
+      opacity: .9;
+      line-height: 1.4;
+    }
+    .file-block label,
+    .ocr-block label {
+      font-size: 12px;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .file-block input[type="file"],
+    .ocr-block input[type="file"] {
+      font-size: 11px;
+      max-width: 200px;
+    }
+    .status {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #ddd;
+    }
+    .status.error { color: #ff7979; }
+    .status.success { color: #2ecc71; }
+
+    .bottom-panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 14px 18px;
+      background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0));
+      z-index: 1000;
+      pointer-events: none;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .play-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: #fff;
+      color: #000;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .play-btn:active {
+      transform: scale(0.96);
+    }
+    .timeline {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .time-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #eee;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      background: transparent;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 4px;
+      background: #555;
+      border-radius: 2px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      margin-top: -5px;
+    }
+    input[type="range"]::-moz-range-track {
+      height: 4px;
+      background: #555;
+      border-radius: 2px;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+    }
+
+    .runner-marker {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .runner-icon {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.08s linear;
+    }
+    .runner-arrow {
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-bottom: 16px solid #00ff00;
+      filter: drop-shadow(0 0 4px #000);
+    }
+
+    .ocr-values {
+      margin-top: 6px;
+      font-size: 11px;
+    }
+    .ocr-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+    }
+    .ocr-row span:last-child {
+      font-weight: 600;
+    }
+    .ocr-actions {
+      display:flex;
+      align-items:center;
+      gap:4px;
+      margin-top:4px;
+    }
+    .ocr-actions button{
+      padding:3px 8px;
       border-radius:999px;
       border:none;
       background:#0f62fe;
       color:#fff;
-      font-size:13px;
+      font-size:11px;
       cursor:pointer;
     }
-    button:disabled { opacity:.4; cursor:default; }
+    .ocr-actions button:disabled{opacity:.4;cursor:default;}
+
+    @media (max-width: 900px) {
+      .top-panel { flex-wrap: wrap; }
+    }
+    @media (max-width: 600px) {
+      .info-main { font-size: 26px; }
+      .info-block, .file-block, .ocr-block { padding: 8px 10px; }
+    }
   </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>운동 스크린샷 OCR</h1>
+<div id="app">
+  <div id="map"></div>
 
-  <div class="card">
-    <input type="file" id="imgInput" accept="image/*" />
-    <button id="runBtn" disabled>OCR 실행</button>
-    <div id="status">운동 요약 스크린샷을 선택해 주세요.</div>
+  <div class="top-panel">
+    <div class="info-block">
+      <h1 id="runTitle">러닝 리플레이</h1>
+      <div class="info-main">
+        <span id="distanceText">0.00</span>
+        <span class="small">km</span>
+      </div>
+      <div class="info-sub">
+        시간: <span id="timeText">00:00:00</span><br/>
+        페이스: <span id="paceText">--'--"</span> /km
+      </div>
+    </div>
+
+    <div class="file-block">
+      <label for="gpxFileInput">GPX 파일 선택</label>
+      <input type="file" id="gpxFileInput" accept=".gpx" />
+      <div class="status" id="statusText">
+        GPX를 선택하면 코스와 재생 컨트롤이 활성화됩니다.
+      </div>
+    </div>
+
+    <div class="ocr-block">
+      <label for="imgInput">운동 요약 스크린샷</label>
+      <input type="file" id="imgInput" accept="image/*" />
+      <div class="ocr-actions">
+        <button id="ocrBtn" disabled>OCR</button>
+        <span id="ocrStatus" class="status">이미지를 선택하세요.</span>
+      </div>
+      <div class="ocr-values">
+        <div class="ocr-row"><span>시간</span><span id="ocrTime">-</span></div>
+        <div class="ocr-row"><span>거리</span><span id="ocrDist">-</span></div>
+        <div class="ocr-row"><span>평균 페이스</span><span id="ocrPace">-</span></div>
+        <div class="ocr-row"><span>등반 고도</span><span id="ocrElev">-</span></div>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <img id="preview" alt="preview" />
-    <div class="row">
-      <div class="label">운동 시간</div><div class="value" id="timeVal">-</div>
+  <div class="bottom-panel">
+    <div class="controls">
+      <button class="play-btn" id="playBtn" disabled>▶</button>
+      <div class="timeline">
+        <input id="progress" type="range" min="0" max="1000" value="0" disabled />
+        <div class="time-labels">
+          <span id="currentTimeLabel">00:00</span>
+          <span id="totalTimeLabel">00:00</span>
+        </div>
+      </div>
     </div>
-    <div class="row">
-      <div class="label">거리</div><div class="value" id="distVal">-</div>
-    </div>
-    <div class="row">
-      <div class="label">평균 페이스</div><div class="value" id="paceVal">-</div>
-    </div>
-    <div class="row">
-      <div class="label">등반 고도</div><div class="value" id="elevVal">-</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="label">원본 OCR 텍스트</div>
-    <div id="rawText"></div>
   </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
+
 <script>
-  const imgInput = document.getElementById('imgInput');
-  const runBtn = document.getElementById('runBtn');
-  const preview = document.getElementById('preview');
-  const statusEl = document.getElementById('status');
-  const rawTextEl = document.getElementById('rawText');
+  var map = L.map('map').setView([37.5, 127], 12);
 
-  const timeVal = document.getElementById('timeVal');
-  const distVal = document.getElementById('distVal');
-  const paceVal = document.getElementById('paceVal');
-  const elevVal = document.getElementById('elevVal');
+  var satellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri'
+    }
+  ).addTo(map);
 
-  let currentFile = null;
+  var osm = L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }
+  );
 
-  imgInput.addEventListener('change', e => {
-    const file = e.target.files[0];
+  L.control.layers(
+    { "위성 (Esri)": satellite, "일반 (OSM)": osm },
+    null, { collapsed: true }
+  ).addTo(map);
+
+  var statusText = document.getElementById("statusText");
+  var distanceText = document.getElementById("distanceText");
+  var timeText = document.getElementById("timeText");
+  var paceText = document.getElementById("paceText");
+  var runTitle = document.getElementById("runTitle");
+
+  var progress = document.getElementById("progress");
+  var playBtn = document.getElementById("playBtn");
+  var currentTimeLabel = document.getElementById("currentTimeLabel");
+  var totalTimeLabel = document.getElementById("totalTimeLabel");
+
+  var routeLayer = null;
+  var runnerMarker = null;
+  var partialLayer = null;
+
+  var trackPoints = [];
+  var cumDist = [];
+  var totalDist = 0;
+  var totalTime = 0;
+  var hasTime = false;
+
+  var playTimer = null;
+  var currentIndex = 0;
+  var playing = false;
+  var playbackSpeed = 80;
+  var followZoom = 17;
+
+  function setStatus(msg, type) {
+    statusText.textContent = msg;
+    statusText.className = "status " + (type || "");
+  }
+
+  function formatTime(ms) {
+    ms = Math.max(0, Math.round(ms));
+    var sec = Math.floor(ms / 1000);
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec % 3600) / 60);
+    var s = sec % 60;
+    return (
+      String(h).padStart(2, "0") + ":" +
+      String(m).padStart(2, "0") + ":" +
+      String(s).padStart(2, "0")
+    );
+  }
+
+  function formatTimeShort(ms) {
+    ms = Math.max(0, Math.round(ms));
+    var sec = Math.floor(ms / 1000);
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function formatPace(ms, distKm) {
+    if (!distKm || distKm <= 0) return "--'--\"";
+    var paceMsPerKm = ms / distKm;
+    var sec = Math.round(paceMsPerKm / 1000);
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return String(m) + "'" + String(s).padStart(2, "0") + "\"";
+  }
+
+  function distanceMeters(a, b) {
+    var R = 6371000;
+    var dLat = (b.lat - a.lat) * Math.PI / 180;
+    var dLon = (b.lng - a.lng) * Math.PI / 180;
+    var lat1 = a.lat * Math.PI / 180;
+    var lat2 = b.lat * Math.PI / 180;
+    var sinDLat = Math.sin(dLat/2);
+    var sinDLon = Math.sin(dLon/2);
+    var c = 2 * Math.atan2(
+      Math.sqrt(sinDLat*sinDLat + Math.cos(lat1)*Math.cos(lat2)*sinDLon*sinDLon),
+      Math.sqrt(1 - (sinDLat*sinDLat + Math.cos(lat1)*Math.cos(lat2)*sinDLon*sinDLon))
+    );
+    return R * c;
+  }
+
+  function bearingDegrees(a, b) {
+    var lat1 = a.lat * Math.PI / 180;
+    var lat2 = b.lat * Math.PI / 180;
+    var dLon = (b.lng - a.lng) * Math.PI / 180;
+    var y = Math.sin(dLon) * Math.cos(lat2);
+    var x = Math.cos(lat1) * Math.sin(lat2) -
+            Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    var brng = Math.atan2(y, x) * 180 / Math.PI;
+    return (brng + 360) % 360;
+  }
+
+  function parseGpx(gpxText) {
+    var parser = new DOMParser();
+    var xml = parser.parseFromString(gpxText, "application/xml");
+
+    var errorNode = xml.querySelector("parsererror");
+    if (errorNode) {
+      throw new Error("XML 파싱 오류");
+    }
+
+    var nameNode = xml.querySelector("trk > name");
+    if (nameNode && nameNode.textContent.trim()) {
+      runTitle.textContent = nameNode.textContent.trim();
+    } else {
+      runTitle.textContent = "GPX 러닝";
+    }
+
+    var ptsXml = xml.getElementsByTagName("trkpt");
+    if (!ptsXml.length) {
+      throw new Error("trkpt가 없습니다.");
+    }
+
+    var pts = [];
+    var t0 = null;
+    var allHaveTime = true;
+
+    for (var i = 0; i < ptsXml.length; i++) {
+      var n = ptsXml[i];
+      var lat = parseFloat(n.getAttribute("lat"));
+      var lon = parseFloat(n.getAttribute("lon"));
+      if (isNaN(lat) || isNaN(lon)) continue;
+
+      var tNode = n.getElementsByTagName("time")[0];
+      var tMs = null;
+      if (tNode && tNode.textContent.trim()) {
+        var d = new Date(tNode.textContent.trim());
+        if (!isNaN(d.getTime())) {
+          tMs = d.getTime();
+          if (t0 === null) t0 = tMs;
+        }
+      }
+      if (tMs === null) allHaveTime = false;
+
+      pts.push({ lat: lat, lng: lon, tMs: tMs });
+    }
+
+    if (pts.length < 2) {
+      throw new Error("포인트가 너무 적습니다.");
+    }
+
+    if (!allHaveTime) {
+      for (var j = 0; j < pts.length; j++) {
+        pts[j].tMs = j * 1000;
+      }
+      hasTime = false;
+    } else {
+      hasTime = true;
+    }
+    return pts;
+  }
+
+  function prepareTrack(pts) {
+    trackPoints = pts;
+    cumDist = [0];
+    totalDist = 0;
+
+    for (var i = 1; i < pts.length; i++) {
+      var d = distanceMeters(pts[i-1], pts[i]);
+      totalDist += d;
+      cumDist.push(totalDist);
+    }
+
+    totalTime = pts[pts.length - 1].tMs - pts[0].tMs;
+    if (!hasTime) {
+      var distKm = totalDist / 1000;
+      totalTime = distKm * 5 * 60 * 1000;
+      for (var k = 0; k < pts.length; k++) {
+        pts[k].tMs = pts[0].tMs + totalTime * (cumDist[k] / totalDist);
+      }
+    }
+  }
+
+  function resetLayers() {
+    if (routeLayer) {
+      map.removeLayer(routeLayer);
+      routeLayer = null;
+    }
+    if (runnerMarker) {
+      map.removeLayer(runnerMarker);
+      runnerMarker = null;
+    }
+    if (partialLayer) {
+      map.removeLayer(partialLayer);
+      partialLayer = null;
+    }
+  }
+
+  function drawRoute() {
+    var latlngs = trackPoints.map(function(p){ return [p.lat, p.lng]; });
+    routeLayer = L.polyline(latlngs, {
+      color: "#ff0000",
+      weight: 4,
+      opacity: 0.9
+    }).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
+
+    var runnerIcon = L.divIcon({
+      className: "runner-marker",
+      html: '<div class="runner-icon"><div class="runner-arrow"></div></div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    });
+
+    runnerMarker = L.marker(latlngs[0], {
+      icon: runnerIcon
+    }).addTo(map);
+
+    partialLayer = L.polyline([latlngs[0]], {
+      color: "#ffffff",
+      weight: 3,
+      opacity: 0.7
+    }).addTo(map);
+  }
+
+  function updateRunnerHeading(idx) {
+    if (!runnerMarker) return;
+    var angle = 0;
+    if (idx < trackPoints.length - 1) {
+      angle = bearingDegrees(trackPoints[idx], trackPoints[idx + 1]);
+    } else if (idx > 0) {
+      angle = bearingDegrees(trackPoints[idx - 1], trackPoints[idx]);
+    }
+    var el = runnerMarker.getElement();
+    if (el) {
+      var inner = el.querySelector(".runner-icon");
+      if (inner) {
+        inner.style.transform = "rotate(" + angle + "deg)";
+      }
+    }
+  }
+
+  function updateVisual(idx) {
+    idx = Math.max(0, Math.min(idx, trackPoints.length - 1));
+    currentIndex = idx;
+
+    var p = trackPoints[idx];
+    var center = [p.lat, p.lng];
+
+    runnerMarker.setLatLng(center);
+
+    var latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
+    partialLayer.setLatLngs(latlngs);
+
+    updateRunnerHeading(idx);
+
+    var distM = cumDist[idx];
+    var distKm = distM / 1000;
+    distanceText.textContent = distKm.toFixed(2);
+
+    var elapsedMs = trackPoints[idx].tMs - trackPoints[0].tMs;
+    timeText.textContent = formatTime(elapsedMs);
+    paceText.textContent = formatPace(elapsedMs, distKm);
+
+    var ratio = distM / totalDist;
+    progress.value = Math.round(ratio * 1000);
+
+    currentTimeLabel.textContent = formatTimeShort(elapsedMs);
+    totalTimeLabel.textContent = formatTimeShort(totalTime);
+
+    if (playing) {
+      if (map.getZoom() < followZoom) {
+        map.setView(center, followZoom, { animate: true });
+      } else {
+        map.panTo(center, { animate: true, duration: 0.08 });
+      }
+    }
+  }
+
+  function startPlayback() {
+    if (!trackPoints.length) return;
+    if (playing) return;
+    playing = true;
+    playBtn.textContent = "⏸";
+
+    if (currentIndex >= trackPoints.length - 1) {
+      currentIndex = 0;
+      updateVisual(currentIndex);
+    }
+
+    var p = trackPoints[currentIndex];
+    map.flyTo([p.lat, p.lng], followZoom, { animate: true, duration: 0.8 });
+
+    if (playTimer) clearInterval(playTimer);
+    playTimer = setInterval(function() {
+      if (currentIndex >= trackPoints.length - 1) {
+        pausePlayback();
+        return;
+      }
+      updateVisual(currentIndex + 1);
+    }, playbackSpeed);
+  }
+
+  function pausePlayback() {
+    playing = false;
+    playBtn.textContent = "▶";
+    if (playTimer) {
+      clearInterval(playTimer);
+      playTimer = null;
+    }
+  }
+
+  document.getElementById("gpxFileInput").addEventListener("change", function(e) {
+    var file = e.target.files[0];
     if (!file) {
-      currentFile = null;
-      runBtn.disabled = true;
-      preview.src = '';
-      statusEl.textContent = '이미지를 다시 선택하세요.';
+      setStatus("파일이 선택되지 않았습니다.", "error");
       return;
     }
-    currentFile = file;
-    preview.src = URL.createObjectURL(file);
-    runBtn.disabled = false;
-    statusEl.textContent = '이미지 로드 완료. OCR 실행 버튼을 눌러주세요.';
+    if (!file.name.toLowerCase().endsWith(".gpx")) {
+      setStatus("GPX 파일만 선택 가능합니다.", "error");
+      return;
+    }
+
+    setStatus("GPX 읽는 중: " + file.name + " ...");
+    pausePlayback();
+    resetLayers();
+
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        var gpxText = ev.target.result;
+        var pts = parseGpx(gpxText);
+        prepareTrack(pts);
+        drawRoute();
+        updateVisual(0);
+
+        setStatus("로드 완료! 길이: " + (totalDist/1000).toFixed(2) + " km", "success");
+        progress.disabled = false;
+        playBtn.disabled = false;
+      } catch (err) {
+        console.error(err);
+        setStatus("GPX 처리 중 오류: " + err.message, "error");
+        progress.disabled = true;
+        playBtn.disabled = true;
+      }
+    };
+    reader.onerror = function() {
+      setStatus("파일을 읽는 중 오류가 발생했습니다.", "error");
+    };
+    reader.readAsText(file);
+  });
+
+  playBtn.addEventListener("click", function() {
+    if (!trackPoints.length) return;
+    if (playing) pausePlayback();
+    else startPlayback();
+  });
+
+  progress.addEventListener("input", function() {
+    if (!trackPoints.length) return;
+    var ratio = progress.value / 1000;
+    var idx = Math.round((trackPoints.length - 1) * ratio);
+    updateVisual(idx);
+  });
+
+  var imgInput = document.getElementById("imgInput");
+  var ocrBtn = document.getElementById("ocrBtn");
+  var ocrStatus = document.getElementById("ocrStatus");
+  var ocrTime = document.getElementById("ocrTime");
+  var ocrDist = document.getElementById("ocrDist");
+  var ocrPace = document.getElementById("ocrPace");
+  var ocrElev = document.getElementById("ocrElev");
+  var currentImageFile = null;
+
+  imgInput.addEventListener("change", function(e) {
+    var f = e.target.files[0];
+    currentImageFile = f || null;
+    if (!f) {
+      ocrBtn.disabled = true;
+      ocrStatus.textContent = "이미지를 다시 선택하세요.";
+      return;
+    }
+    ocrBtn.disabled = false;
+    ocrStatus.textContent = "OCR 버튼을 눌러 인식합니다.";
   });
 
   function extractMetrics(text) {
-    const res = {
-      time: null,
-      dist: null,
-      pace: null,
-      elev: null
-    };
+    var r = { time:null, dist:null, pace:null, elev:null };
 
-    const timeMatch = text.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
-    if (timeMatch) res.time = timeMatch[1];
+    var tm = text.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
+    if (tm) r.time = tm[1];
 
-    const distMatch = text.match(/(\d+(?:\.\d+)?)\s*km/i);
-    if (distMatch) res.dist = distMatch[1] + ' km';
+    var dist = text.match(/(\d+(?:\.\d+)?)\s*km/i);
+    if (dist) r.dist = dist[1] + " km";
 
-    const paceMatch = text.match(/(\d{1,2}'\d{2}"(?:\/km)?)/i);
-    if (paceMatch) res.pace = paceMatch[1];
+    var pace = text.match(/(\d{1,2}'\d{2}"(?:\/km)?)/i);
+    if (pace) r.pace = pace[1];
 
-    const elevMatch = text.match(/(\d+)\s*m/i);
-    if (elevMatch) res.elev = elevMatch[1] + ' m';
+    var elev = text.match(/(\d+)\s*m/i);
+    if (elev) r.elev = elev[1] + " m";
 
-    return res;
+    return r;
   }
 
-  runBtn.addEventListener('click', async () => {
-    if (!currentFile) return;
+  ocrBtn.addEventListener("click", async function() {
+    if (!currentImageFile) return;
 
-    runBtn.disabled = true;
-    statusEl.textContent = 'OCR 처리 중입니다... (브라우저에서 직접 계산)';
-    rawTextEl.textContent = '';
+    ocrBtn.disabled = true;
+    ocrStatus.textContent = "OCR 처리 중...";
 
     try {
-      const { data: { text } } = await Tesseract.recognize(
-        currentFile,
-        'eng',         // 숫자/영문 위주라 eng만으로도 대부분 인식 가능
-        { logger: m => console.log(m) }
-      );
+      var result = await Tesseract.recognize(currentImageFile, "eng", {
+        logger: function(m){ console.log(m); }
+      });
+      var text = result.data.text || "";
+      var m = extractMetrics(text);
 
-      rawTextEl.textContent = text;
+      ocrTime.textContent = m.time || "-";
+      ocrDist.textContent = m.dist || "-";
+      ocrPace.textContent = m.pace || "-";
+      ocrElev.textContent = m.elev || "-";
 
-      const m = extractMetrics(text);
-
-      timeVal.textContent = m.time || '-';
-      distVal.textContent = m.dist || '-';
-      paceVal.textContent = m.pace || '-';
-      elevVal.textContent = m.elev || '-';
-
-      statusEl.textContent = 'OCR 완료. 인식된 값은 위에 표시됩니다.';
-    } catch (err) {
-      console.error(err);
-      statusEl.textContent = 'OCR 중 오류가 발생했습니다.';
+      ocrStatus.textContent = "OCR 완료";
+    } catch (e) {
+      console.error(e);
+      ocrStatus.textContent = "OCR 오류 발생";
     } finally {
-      runBtn.disabled = !currentFile;
+      if (currentImageFile) ocrBtn.disabled = false;
     }
   });
 </script>
