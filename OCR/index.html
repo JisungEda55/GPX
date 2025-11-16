@@ -218,6 +218,13 @@
     }
     .ocr-actions button:disabled{opacity:.4;cursor:default;}
 
+    #summaryArea{
+      margin-top:6px;
+      border-top:1px solid rgba(255,255,255,0.2);
+      padding-top:6px;
+      display:none;
+    }
+
     @media (max-width: 900px) {
       .top-panel { flex-wrap: wrap; }
     }
@@ -232,7 +239,8 @@
   <div id="map"></div>
 
   <div class="top-panel">
-    <div class="info-block">
+    <!-- 1번 영역: 나중에 숨길 카드 -->
+    <div class="info-block" id="infoBlock">
       <h1 id="runTitle">러닝 리플레이</h1>
       <div class="info-main">
         <span id="distanceText">0.00</span>
@@ -244,6 +252,7 @@
       </div>
     </div>
 
+    <!-- GPX 선택 카드 -->
     <div class="file-block">
       <label for="gpxFileInput">GPX 파일 선택</label>
       <input type="file" id="gpxFileInput" accept=".gpx" />
@@ -252,6 +261,7 @@
       </div>
     </div>
 
+    <!-- 2번 영역: OCR + 통합 요약 표시 카드 -->
     <div class="ocr-block">
       <label for="imgInput">운동 요약 스크린샷</label>
       <input type="file" id="imgInput" accept="image/*" />
@@ -260,10 +270,21 @@
         <span id="ocrStatus" class="status">이미지를 선택하세요.</span>
       </div>
       <div class="ocr-values">
-        <div class="ocr-row"><span>시간</span><span id="ocrTime">-</span></div>
-        <div class="ocr-row"><span>거리</span><span id="ocrDist">-</span></div>
-        <div class="ocr-row"><span>평균 페이스</span><span id="ocrPace">-</span></div>
+        <div class="ocr-row"><span>OCR 시간</span><span id="ocrTime">-</span></div>
+        <div class="ocr-row"><span>OCR 거리</span><span id="ocrDist">-</span></div>
+        <div class="ocr-row"><span>OCR 평균 페이스</span><span id="ocrPace">-</span></div>
         <div class="ocr-row"><span>등반 고도</span><span id="ocrElev">-</span></div>
+      </div>
+
+      <!-- GPX + OCR 통합 요약 (값 다 로드되면 보여짐) -->
+      <div id="summaryArea" class="ocr-values">
+        <div class="ocr-row"><span>GPX 거리</span><span id="sumGpxDist">-</span></div>
+        <div class="ocr-row"><span>GPX 총 시간</span><span id="sumGpxTime">-</span></div>
+        <div class="ocr-row"><span>GPX 평균 페이스</span><span id="sumGpxPace">-</span></div>
+        <div class="ocr-row"><span>OCR 시간</span><span id="sumOcrTime">-</span></div>
+        <div class="ocr-row"><span>OCR 거리</span><span id="sumOcrDist">-</span></div>
+        <div class="ocr-row"><span>OCR 평균 페이스</span><span id="sumOcrPace">-</span></div>
+        <div class="ocr-row"><span>등반 고도</span><span id="sumOcrElev">-</span></div>
       </div>
     </div>
   </div>
@@ -309,6 +330,8 @@
     null, { collapsed: true }
   ).addTo(map);
 
+  var infoBlock = document.getElementById("infoBlock");
+
   var statusText = document.getElementById("statusText");
   var distanceText = document.getElementById("distanceText");
   var timeText = document.getElementById("timeText");
@@ -335,6 +358,9 @@
   var playing = false;
   var playbackSpeed = 80;
   var followZoom = 17;
+
+  var gpxLoaded = false;
+  var ocrLoaded = false;
 
   function setStatus(msg, type) {
     statusText.textContent = msg;
@@ -607,8 +633,39 @@
     }
   }
 
+  var summaryArea = document.getElementById("summaryArea");
+  var sumGpxDist = document.getElementById("sumGpxDist");
+  var sumGpxTime = document.getElementById("sumGpxTime");
+  var sumGpxPace = document.getElementById("sumGpxPace");
+  var sumOcrTime = document.getElementById("sumOcrTime");
+  var sumOcrDist = document.getElementById("sumOcrDist");
+  var sumOcrPace = document.getElementById("sumOcrPace");
+  var sumOcrElev = document.getElementById("sumOcrElev");
+
+  function updateSummaryIfReady() {
+    if (gpxLoaded && ocrLoaded) {
+      infoBlock.style.display = "none";
+      summaryArea.style.display = "block";
+
+      var distKm = totalDist / 1000;
+      sumGpxDist.textContent = distKm.toFixed(2) + " km";
+      sumGpxTime.textContent = formatTime(totalTime);
+      sumGpxPace.textContent = formatPace(totalTime, distKm);
+
+      sumOcrTime.textContent = ocrTime.textContent;
+      sumOcrDist.textContent = ocrDist.textContent;
+      sumOcrPace.textContent = ocrPace.textContent;
+      sumOcrElev.textContent = ocrElev.textContent;
+    }
+  }
+
   document.getElementById("gpxFileInput").addEventListener("change", function(e) {
     var file = e.target.files[0];
+
+    gpxLoaded = false;
+    infoBlock.style.display = "";
+    summaryArea.style.display = "none";
+
     if (!file) {
       setStatus("파일이 선택되지 않았습니다.", "error");
       return;
@@ -634,6 +691,9 @@
         setStatus("로드 완료! 길이: " + (totalDist/1000).toFixed(2) + " km", "success");
         progress.disabled = false;
         playBtn.disabled = false;
+
+        gpxLoaded = true;
+        updateSummaryIfReady();
       } catch (err) {
         console.error(err);
         setStatus("GPX 처리 중 오류: " + err.message, "error");
@@ -672,6 +732,10 @@
   imgInput.addEventListener("change", function(e) {
     var f = e.target.files[0];
     currentImageFile = f || null;
+    ocrLoaded = false;
+    infoBlock.style.display = "";
+    summaryArea.style.display = "none";
+
     if (!f) {
       ocrBtn.disabled = true;
       ocrStatus.textContent = "이미지를 다시 선택하세요.";
@@ -718,6 +782,8 @@
       ocrElev.textContent = m.elev || "-";
 
       ocrStatus.textContent = "OCR 완료";
+      ocrLoaded = true;
+      updateSummaryIfReady();
     } catch (e) {
       console.error(e);
       ocrStatus.textContent = "OCR 오류 발생";
