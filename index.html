@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>GPX Viewer on Satellite Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+    #map {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* 상단 컨트롤 패널 */
+    .control-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-size: 13px;
+    }
+
+    .control-panel h1 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+    }
+
+    .control-panel input[type="file"] {
+      font-size: 12px;
+    }
+
+    .status {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #333;
+    }
+
+    .status.error {
+      color: #c0392b;
+    }
+
+    .status.success {
+      color: #27ae60;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="control-panel">
+    <h1>GPX 위성지도 뷰어</h1>
+    <div>
+      <input type="file" id="gpxFileInput" accept=".gpx" />
+    </div>
+    <div class="status" id="statusText">
+      GPX 파일을 선택하면 위성 지도 위에 트랙이 표시됩니다.
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <!-- Leaflet GPX 플러그인 -->
+  <script src="https://unpkg.com/leaflet-gpx@1.7.0/gpx.min.js"></script>
+
+  <script>
+    // 기본 지도 생성 (초기 위치는 전 세계가 보이도록)
+    var map = L.map('map').setView([20, 0], 2);
+
+    // 위성 지도 타일 (Esri World Imagery)
+    var satellite = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 19,
+        attribution:
+          'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, ' +
+          'UPR-EGP, and the GIS User Community'
+      }
+    ).addTo(map);
+
+    // (선택) OSM 기본 타일도 옵션으로 추가
+    var osm = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }
+    );
+
+    // 레이어 컨트롤 (위성 / OSM 전환 가능)
+    L.control.layers(
+      {
+        '위성 지도 (Esri)': satellite,
+        '일반 지도 (OSM)': osm
+      },
+      null,
+      { collapsed: true }
+    ).addTo(map);
+
+    var currentGpxLayer = null;
+    var currentGpxUrl = null;
+    var statusText = document.getElementById('statusText');
+
+    function setStatus(msg, type) {
+      statusText.textContent = msg;
+      statusText.className = 'status ' + (type || '');
+    }
+
+    document.getElementById('gpxFileInput').addEventListener('change', function (event) {
+      var file = event.target.files[0];
+      if (!file) {
+        setStatus('파일이 선택되지 않았습니다.', 'error');
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith('.gpx')) {
+        setStatus('GPX 파일만 선택할 수 있습니다.', 'error');
+        return;
+      }
+
+      setStatus('GPX 파일을 읽는 중입니다: ' + file.name + ' ...');
+
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var gpxText = e.target.result;
+
+        // 이전 GPX 레이어가 있으면 제거
+        if (currentGpxLayer) {
+          map.removeLayer(currentGpxLayer);
+          currentGpxLayer = null;
+        }
+
+        // 이전 Blob URL 제거
+        if (currentGpxUrl) {
+          URL.revokeObjectURL(currentGpxUrl);
+          currentGpxUrl = null;
+        }
+
+        try {
+          // 문자열 데이터를 Blob으로 만들고 Object URL을 생성
+          var blob = new Blob([gpxText], { type: 'application/gpx+xml' });
+          var url = URL.createObjectURL(blob);
+          currentGpxUrl = url;
+
+          // Leaflet GPX 레이어 생성
+          currentGpxLayer = new L.GPX(url, {
+            async: true,
+            marker_options: {
+              startIconUrl: 'https://unpkg.com/leaflet-gpx@1.7.0/pin-icon-start.png',
+              endIconUrl: 'https://unpkg.com/leaflet-gpx@1.7.0/pin-icon-end.png',
+              shadowUrl: 'https://unpkg.com/leaflet-gpx@1.7.0/pin-shadow.png'
+            }
+          })
+          .on('loaded', function (e) {
+            // 트랙 전체가 화면에 들어오도록
+            map.fitBounds(e.target.getBounds());
+            setStatus('로드 완료: ' + file.name, 'success');
+          })
+          .on('error', function (e) {
+            console.error(e);
+            setStatus('GPX 파싱 중 오류가 발생했습니다. 파일을 확인해 주세요.', 'error');
+          })
+          .addTo(map);
+        } catch (err) {
+          console.error(err);
+          setStatus('GPX 파일을 처리하는 중 오류가 발생했습니다.', 'error');
+        }
+      };
+
+      reader.onerror = function () {
+        setStatus('파일을 읽는 중 오류가 발생했습니다.', 'error');
+      };
+
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
