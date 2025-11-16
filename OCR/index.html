@@ -313,18 +313,12 @@
 
   var satellite = L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    {
-      maxZoom: 19,
-      attribution: 'Tiles &copy; Esri'
-    }
+    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
   ).addTo(map);
 
   var osm = L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors"
-    }
+    { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }
   );
 
   L.control.layers(
@@ -333,20 +327,20 @@
   ).addTo(map);
 
   var infoBlock = document.getElementById("infoBlock");
-  var gpxCard = document.getElementById("gpxCard");
-  var ocrCard = document.getElementById("ocrCard");
+  var gpxCard  = document.getElementById("gpxCard");
+  var ocrCard  = document.getElementById("ocrCard");
   var finalBlock = document.getElementById("finalBlock");
 
-  var statusText = document.getElementById("statusText");
-  var distanceText = document.getElementById("distanceText");
-  var timeText = document.getElementById("timeText");
-  var paceText = document.getElementById("paceText");
-  var runTitle = document.getElementById("runTitle");
+  var statusText  = document.getElementById("statusText");
+  var distanceText= document.getElementById("distanceText");
+  var timeText    = document.getElementById("timeText");
+  var paceText    = document.getElementById("paceText");
+  var runTitle    = document.getElementById("runTitle");
 
-  var progress = document.getElementById("progress");
-  var playBtn = document.getElementById("playBtn");
-  var currentTimeLabel = document.getElementById("currentTimeLabel");
-  var totalTimeLabel = document.getElementById("totalTimeLabel");
+  var progress           = document.getElementById("progress");
+  var playBtn            = document.getElementById("playBtn");
+  var currentTimeLabel   = document.getElementById("currentTimeLabel");
+  var totalTimeLabel     = document.getElementById("totalTimeLabel");
 
   var routeLayer = null;
   var runnerMarker = null;
@@ -361,7 +355,7 @@
   var playTimer = null;
   var currentIndex = 0;
   var playing = false;
-  var playbackSpeed = 50; // 조금 느리게
+  var playbackSpeed = 50;
   var followZoom = 17;
   var currentHeading = null;
 
@@ -429,7 +423,7 @@
     return (brng + 360) % 360;
   }
 
-  // 경로를 더 부드럽게 만들기 위해 포인트를 촘촘하게 분할
+  // 경로 부드럽게 – 약 5m 간격으로 분할
   function densifyTrack(pts, stepMeters) {
     var result = [];
     if (!pts.length) return result;
@@ -496,13 +490,11 @@
     }
 
     if (pts.length < 2) throw new Error("포인트가 너무 적습니다.");
-
     hasTime = allHaveTime;
     return pts;
   }
 
   function prepareTrack(rawPts) {
-    // 1) 원본 기준 거리 계산
     var cumRaw = [0];
     var totalRaw = 0;
     for (var i = 1; i < rawPts.length; i++) {
@@ -511,7 +503,6 @@
       cumRaw.push(totalRaw);
     }
 
-    // 2) 시간 없으면 5분/km 기준으로 생성
     totalTime = rawPts[rawPts.length - 1].tMs - rawPts[0].tMs;
     if (!hasTime) {
       var distKm = totalRaw / 1000;
@@ -521,10 +512,7 @@
       }
     }
 
-    // 3) 시간 포함된 경로를 촘촘하게 분할해서 부드럽게
-    var dense = densifyTrack(rawPts, 5); // 약 5m 간격
-
-    // 4) 촘촘한 경로 기준으로 거리/시간 다시 계산
+    var dense = densifyTrack(rawPts, 5); // 5m 간격
     trackPoints = dense;
     cumDist = [0];
     totalDist = 0;
@@ -545,19 +533,19 @@
   function drawRoute() {
     var latlngs = trackPoints.map(function(p){ return [p.lat, p.lng]; });
 
-    // 전체 코스: 연한 회색
+    // 전체 코스: 진초록색 (항상)
     routeLayer = L.polyline(latlngs, {
-      color: "#cccccc",
-      weight: 3,
-      opacity: 0.5,
+      color: "#009944",
+      weight: 4,
+      opacity: 0.9,
       lineCap: "round",
       lineJoin: "round"
     }).addTo(map);
 
     map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
 
-    // 진행 중 코스: 밝은 연두색
-    partialLayer = L.polyline([latlngs[0]], {
+    // 진행 구간용 라인 (play일 때만 부분적으로, 아닐 때는 전체)
+    partialLayer = L.polyline(latlngs, {
       color: "#00ff66",
       weight: 6,
       opacity: 0.9,
@@ -565,7 +553,6 @@
       lineJoin: "round"
     }).addTo(map);
 
-    // 두근거리는 원 마커
     var runnerIcon = L.divIcon({
       className: "runner-marker",
       html: '<div class="runner-icon"><div class="runner-pulse"></div><div class="runner-dot"></div></div>',
@@ -585,9 +572,18 @@
 
     runnerMarker.setLatLng(center);
 
-    var latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
+    // 1) 경로 라인 처리
+    var latlngs;
+    if (playing) {
+      // 재생 중에는 지나온 구간만 밝게
+      latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
+    } else {
+      // 재생 중이 아니면 전체 경로를 초록색으로
+      latlngs = trackPoints.map(function(pt){ return [pt.lat, pt.lng]; });
+    }
     partialLayer.setLatLngs(latlngs);
 
+    // 2) 진행 방향 계산
     var heading = null;
     if (idx < trackPoints.length - 1) {
       heading = bearingDegrees(trackPoints[idx], trackPoints[idx + 1]);
@@ -596,6 +592,7 @@
     }
     currentHeading = heading;
 
+    // 3) 통계 텍스트
     var distM = cumDist[idx];
     var distKm = distM / 1000;
     distanceText.textContent = distKm.toFixed(2);
@@ -610,6 +607,7 @@
     currentTimeLabel.textContent = formatTimeShort(elapsedMs);
     totalTimeLabel.textContent = formatTimeShort(totalTime);
 
+    // 4) 카메라 추적 – 부드럽게(lerp)
     if (playing) {
       var followTarget = L.latLng(center[0], center[1]);
 
@@ -622,11 +620,13 @@
         followTarget = L.latLng(p.lat + dLat, p.lng + dLon);
       }
 
-      if (map.getZoom() < followZoom) {
-        map.setView(followTarget, followZoom, { animate: true });
-      } else {
-        map.panTo(followTarget, { animate: true, duration: 0.12 });
-      }
+      var currentCenter = map.getCenter();
+      var alpha = 0.15; // 0~1, 작을수록 더 부드러움
+      var smoothLat = currentCenter.lat + (followTarget.lat - currentCenter.lat) * alpha;
+      var smoothLng = currentCenter.lng + (followTarget.lng - currentCenter.lng) * alpha;
+      var smoothTarget = L.latLng(smoothLat, smoothLng);
+
+      map.setView(smoothTarget, followZoom, { animate: false });
     }
   }
 
@@ -658,32 +658,35 @@
     playing = false;
     playBtn.textContent = "▶";
     if (playTimer) { clearInterval(playTimer); playTimer = null; }
+
+    // 일시정지 시 전체 경로를 다시 보여주도록 갱신
+    updateVisual(currentIndex);
   }
 
-  var finalTitle = document.getElementById("finalTitle");
+  var finalTitle    = document.getElementById("finalTitle");
   var finalDistance = document.getElementById("finalDistance");
-  var finalGpxTime = document.getElementById("finalGpxTime");
-  var finalGpxPace = document.getElementById("finalGpxPace");
-  var finalOcrTime = document.getElementById("finalOcrTime");
-  var finalOcrPace = document.getElementById("finalOcrPace");
-  var finalElev = document.getElementById("finalElev");
+  var finalGpxTime  = document.getElementById("finalGpxTime");
+  var finalGpxPace  = document.getElementById("finalGpxPace");
+  var finalOcrTime  = document.getElementById("finalOcrTime");
+  var finalOcrPace  = document.getElementById("finalOcrPace");
+  var finalElev     = document.getElementById("finalElev");
 
   function updateSummaryIfReady() {
     if (gpxLoaded && ocrLoaded) {
       var distKm = totalDist / 1000;
 
-      finalTitle.textContent = runTitle.textContent;
+      finalTitle.textContent    = runTitle.textContent;
       finalDistance.textContent = distKm.toFixed(2);
-      finalGpxTime.textContent = formatTime(totalTime);
-      finalGpxPace.textContent = formatPace(totalTime, distKm);
-      finalOcrTime.textContent = document.getElementById("ocrTime").textContent;
-      finalOcrPace.textContent = document.getElementById("ocrPace").textContent;
-      finalElev.textContent = document.getElementById("ocrElev").textContent;
+      finalGpxTime.textContent  = formatTime(totalTime);
+      finalGpxPace.textContent  = formatPace(totalTime, distKm);
+      finalOcrTime.textContent  = document.getElementById("ocrTime").textContent;
+      finalOcrPace.textContent  = document.getElementById("ocrPace").textContent;
+      finalElev.textContent     = document.getElementById("ocrElev").textContent;
 
       infoBlock.style.display = "none";
-      gpxCard.style.display = "none";
-      ocrCard.style.display = "none";
-      finalBlock.style.display = "block";
+      gpxCard.style.display   = "none";
+      ocrCard.style.display   = "none";
+      finalBlock.style.display= "block";
     }
   }
 
@@ -692,9 +695,9 @@
 
     gpxLoaded = false;
     infoBlock.style.display = "";
-    gpxCard.style.display = "";
-    ocrCard.style.display = "";
-    finalBlock.style.display = "none";
+    gpxCard.style.display   = "";
+    ocrCard.style.display   = "";
+    finalBlock.style.display= "none";
 
     if (!file) { setStatus("파일이 선택되지 않았습니다.", "error"); return; }
     if (!file.name.toLowerCase().endsWith(".gpx")) {
@@ -717,7 +720,7 @@
 
         setStatus("로드 완료! 길이: " + (totalDist/1000).toFixed(2) + " km", "success");
         progress.disabled = false;
-        playBtn.disabled = false;
+        playBtn.disabled  = false;
 
         gpxLoaded = true;
         updateSummaryIfReady();
@@ -725,7 +728,7 @@
         console.error(err);
         setStatus("GPX 처리 중 오류: " + err.message, "error");
         progress.disabled = true;
-        playBtn.disabled = true;
+        playBtn.disabled  = true;
       }
     };
     reader.onerror = function() {
@@ -737,23 +740,23 @@
   playBtn.addEventListener("click", function() {
     if (!trackPoints.length) return;
     if (playing) pausePlayback();
-    else startPlayback();
+    else        startPlayback();
   });
 
   progress.addEventListener("input", function() {
     if (!trackPoints.length) return;
     var ratio = progress.value / 1000;
-    var idx = Math.round((trackPoints.length - 1) * ratio);
+    var idx   = Math.round((trackPoints.length - 1) * ratio);
     updateVisual(idx);
   });
 
-  var imgInput = document.getElementById("imgInput");
-  var ocrBtn = document.getElementById("ocrBtn");
-  var ocrStatus = document.getElementById("ocrStatus");
-  var ocrTime = document.getElementById("ocrTime");
-  var ocrDist = document.getElementById("ocrDist");
-  var ocrPace = document.getElementById("ocrPace");
-  var ocrElev = document.getElementById("ocrElev");
+  var imgInput   = document.getElementById("imgInput");
+  var ocrBtn     = document.getElementById("ocrBtn");
+  var ocrStatus  = document.getElementById("ocrStatus");
+  var ocrTime    = document.getElementById("ocrTime");
+  var ocrDist    = document.getElementById("ocrDist");
+  var ocrPace    = document.getElementById("ocrPace");
+  var ocrElev    = document.getElementById("ocrElev");
   var currentImageFile = null;
 
   imgInput.addEventListener("change", function(e) {
@@ -762,9 +765,9 @@
     ocrLoaded = false;
 
     infoBlock.style.display = "";
-    gpxCard.style.display = "";
-    ocrCard.style.display = "";
-    finalBlock.style.display = "none";
+    gpxCard.style.display   = "";
+    ocrCard.style.display   = "";
+    finalBlock.style.display= "none";
 
     if (!f) {
       ocrBtn.disabled = true;
@@ -778,7 +781,7 @@
   function extractMetrics(text) {
     var r = { time:null, dist:null, pace:null, elev:null };
 
-    var tm = text.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
+    var tm   = text.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
     if (tm) r.time = tm[1];
 
     var dist = text.match(/(\d+(?:\.\d+)?)\s*km/i);
