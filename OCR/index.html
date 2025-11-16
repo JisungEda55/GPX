@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>운동 요약 OCR 데모</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
+  <style>
+    * { box-sizing:border-box; }
+    html,body {
+      margin:0; padding:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:#000; color:#fff;
+    }
+    .wrap {
+      max-width:480px;
+      margin:0 auto;
+      padding:16px;
+    }
+    h1 { font-size:20px; margin:0 0 12px; }
+    .card {
+      background:#111;
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:12px;
+    }
+    .row { display:flex; justify-content:space-between; margin-bottom:4px; }
+    .label { font-size:13px; opacity:.8; }
+    .value { font-size:18px; font-weight:600; }
+    #preview {
+      width:100%;
+      max-height:260px;
+      object-fit:contain;
+      border-radius:10px;
+      background:#222;
+      margin-bottom:8px;
+    }
+    #status { font-size:12px; margin-top:4px; opacity:.9; }
+    #rawText {
+      font-family:ui-monospace,Menlo,Consolas,monospace;
+      font-size:11px;
+      white-space:pre-wrap;
+      max-height:220px;
+      overflow:auto;
+    }
+    input[type=file] { font-size:12px; }
+    button {
+      padding:6px 12px;
+      border-radius:999px;
+      border:none;
+      background:#0f62fe;
+      color:#fff;
+      font-size:13px;
+      cursor:pointer;
+    }
+    button:disabled { opacity:.4; cursor:default; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>운동 스크린샷 OCR</h1>
+
+  <div class="card">
+    <input type="file" id="imgInput" accept="image/*" />
+    <button id="runBtn" disabled>OCR 실행</button>
+    <div id="status">운동 요약 스크린샷을 선택해 주세요.</div>
+  </div>
+
+  <div class="card">
+    <img id="preview" alt="preview" />
+    <div class="row">
+      <div class="label">운동 시간</div><div class="value" id="timeVal">-</div>
+    </div>
+    <div class="row">
+      <div class="label">거리</div><div class="value" id="distVal">-</div>
+    </div>
+    <div class="row">
+      <div class="label">평균 페이스</div><div class="value" id="paceVal">-</div>
+    </div>
+    <div class="row">
+      <div class="label">등반 고도</div><div class="value" id="elevVal">-</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">원본 OCR 텍스트</div>
+    <div id="rawText"></div>
+  </div>
+</div>
+
+<script>
+  const imgInput = document.getElementById('imgInput');
+  const runBtn = document.getElementById('runBtn');
+  const preview = document.getElementById('preview');
+  const statusEl = document.getElementById('status');
+  const rawTextEl = document.getElementById('rawText');
+
+  const timeVal = document.getElementById('timeVal');
+  const distVal = document.getElementById('distVal');
+  const paceVal = document.getElementById('paceVal');
+  const elevVal = document.getElementById('elevVal');
+
+  let currentFile = null;
+
+  imgInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) {
+      currentFile = null;
+      runBtn.disabled = true;
+      preview.src = '';
+      statusEl.textContent = '이미지를 다시 선택하세요.';
+      return;
+    }
+    currentFile = file;
+    preview.src = URL.createObjectURL(file);
+    runBtn.disabled = false;
+    statusEl.textContent = '이미지 로드 완료. OCR 실행 버튼을 눌러주세요.';
+  });
+
+  function extractMetrics(text) {
+    const res = {
+      time: null,
+      dist: null,
+      pace: null,
+      elev: null
+    };
+
+    const timeMatch = text.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
+    if (timeMatch) res.time = timeMatch[1];
+
+    const distMatch = text.match(/(\d+(?:\.\d+)?)\s*km/i);
+    if (distMatch) res.dist = distMatch[1] + ' km';
+
+    const paceMatch = text.match(/(\d{1,2}'\d{2}"(?:\/km)?)/i);
+    if (paceMatch) res.pace = paceMatch[1];
+
+    const elevMatch = text.match(/(\d+)\s*m/i);
+    if (elevMatch) res.elev = elevMatch[1] + ' m';
+
+    return res;
+  }
+
+  runBtn.addEventListener('click', async () => {
+    if (!currentFile) return;
+
+    runBtn.disabled = true;
+    statusEl.textContent = 'OCR 처리 중입니다... (브라우저에서 직접 계산)';
+    rawTextEl.textContent = '';
+
+    try {
+      const { data: { text } } = await Tesseract.recognize(
+        currentFile,
+        'eng',         // 숫자/영문 위주라 eng만으로도 대부분 인식 가능
+        { logger: m => console.log(m) }
+      );
+
+      rawTextEl.textContent = text;
+
+      const m = extractMetrics(text);
+
+      timeVal.textContent = m.time || '-';
+      distVal.textContent = m.dist || '-';
+      paceVal.textContent = m.pace || '-';
+      elevVal.textContent = m.elev || '-';
+
+      statusEl.textContent = 'OCR 완료. 인식된 값은 위에 표시됩니다.';
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'OCR 중 오류가 발생했습니다.';
+    } finally {
+      runBtn.disabled = !currentFile;
+    }
+  });
+</script>
+</body>
+</html>
