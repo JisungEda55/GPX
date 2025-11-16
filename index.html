@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>GPX 러닝 리플레이 (Garmin 스타일)</title>
+  <title>GPX 러닝 리플레이 + OCR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <link
@@ -39,10 +39,11 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      gap: 8px;
       z-index: 1000;
       pointer-events: none;
     }
-    .info-block, .file-block {
+    .info-block, .file-block, .ocr-block, .final-block {
       background: rgba(0,0,0,0.55);
       border-radius: 10px;
       padding: 10px 14px;
@@ -70,12 +71,14 @@
       opacity: .9;
       line-height: 1.4;
     }
-    .file-block label {
+    .file-block label,
+    .ocr-block label {
       font-size: 12px;
       display: block;
       margin-bottom: 4px;
     }
-    .file-block input[type="file"] {
+    .file-block input[type="file"],
+    .ocr-block input[type="file"] {
       font-size: 11px;
       max-width: 200px;
     }
@@ -162,11 +165,6 @@
       background: #fff;
     }
 
-    @media (max-width: 600px) {
-      .info-main { font-size: 26px; }
-      .info-block, .file-block { padding: 8px 10px; }
-    }
-
     .runner-marker {
       width: 32px;
       height: 32px;
@@ -190,6 +188,76 @@
       border-bottom: 16px solid #00ff00;
       filter: drop-shadow(0 0 4px #000);
     }
+
+    .ocr-values {
+      margin-top: 6px;
+      font-size: 11px;
+    }
+    .ocr-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+    }
+    .ocr-row span:last-child {
+      font-weight: 600;
+    }
+    .ocr-actions {
+      display:flex;
+      align-items:center;
+      gap:4px;
+      margin-top:4px;
+    }
+    .ocr-actions button{
+      padding:3px 8px;
+      border-radius:999px;
+      border:none;
+      background:#0f62fe;
+      color:#fff;
+      font-size:11px;
+      cursor:pointer;
+    }
+    .ocr-actions button:disabled{opacity:.4;cursor:default;}
+
+    /* 최종 요약 블록 (Garmin 스타일) */
+    .final-block {
+      display:none;
+      min-width: 220px;
+    }
+    .final-title {
+      font-size:13px;
+      opacity:.9;
+      margin-bottom:4px;
+    }
+    .final-main {
+      font-size:34px;
+      font-weight:700;
+      line-height:1;
+      margin-bottom:6px;
+    }
+    .final-main .small {
+      font-size:18px;
+      margin-left:4px;
+    }
+    .final-sub-line {
+      font-size:12px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-top:2px;
+    }
+    .final-sub-label {
+      opacity:.8;
+      min-width:60px;
+    }
+
+    @media (max-width: 900px) {
+      .top-panel { flex-wrap: wrap; }
+    }
+    @media (max-width: 600px) {
+      .info-main { font-size: 26px; }
+      .info-block, .file-block, .ocr-block, .final-block { padding: 8px 10px; }
+      .final-main { font-size: 28px; }
+    }
   </style>
 </head>
 <body>
@@ -197,7 +265,8 @@
   <div id="map"></div>
 
   <div class="top-panel">
-    <div class="info-block">
+    <!-- 초기 / 로딩용 정보 카드 (1번 영역) -->
+    <div class="info-block" id="infoBlock">
       <h1 id="runTitle">러닝 리플레이</h1>
       <div class="info-main">
         <span id="distanceText">0.00</span>
@@ -208,11 +277,60 @@
         페이스: <span id="paceText">--'--"</span> /km
       </div>
     </div>
-    <div class="file-block">
+
+    <!-- GPX 선택 카드 -->
+    <div class="file-block" id="gpxCard">
       <label for="gpxFileInput">GPX 파일 선택</label>
       <input type="file" id="gpxFileInput" accept=".gpx" />
       <div class="status" id="statusText">
         GPX를 선택하면 코스와 재생 컨트롤이 활성화됩니다.
+      </div>
+    </div>
+
+    <!-- OCR 카드 + 오른쪽 영역 -->
+    <div class="ocr-block" id="ocrCard">
+      <label for="imgInput">운동 요약 스크린샷</label>
+      <input type="file" id="imgInput" accept="image/*" />
+      <div class="ocr-actions">
+        <button id="ocrBtn" disabled>OCR</button>
+        <span id="ocrStatus" class="status">이미지를 선택하세요.</span>
+      </div>
+      <div class="ocr-values">
+        <div class="ocr-row"><span>OCR 시간</span><span id="ocrTime">-</span></div>
+        <div class="ocr-row"><span>OCR 거리</span><span id="ocrDist">-</span></div>
+        <div class="ocr-row"><span>OCR 평균 페이스</span><span id="ocrPace">-</span></div>
+        <div class="ocr-row"><span>등반 고도</span><span id="ocrElev">-</span></div>
+      </div>
+    </div>
+
+    <!-- 최종 Garmin 스타일 카드 (값 다 준비되면 이것만 보이게) -->
+    <div class="final-block" id="finalBlock">
+      <div class="final-title" id="finalTitle">운동 요약</div>
+      <div class="final-main">
+        <span id="finalDistance">0.00</span>
+        <span class="small">km</span>
+      </div>
+      <div class="final-sub">
+        <div class="final-sub-line">
+          <span class="final-sub-label">GPX 시간</span>
+          <span id="finalGpxTime">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">GPX 페이스</span>
+          <span id="finalGpxPace">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">OCR 시간</span>
+          <span id="finalOcrTime">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">OCR 페이스</span>
+          <span id="finalOcrPace">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">등반 고도</span>
+          <span id="finalElev">-</span>
+        </div>
       </div>
     </div>
   </div>
@@ -232,6 +350,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 
 <script>
   var map = L.map('map').setView([37.5, 127], 12);
@@ -256,6 +375,11 @@
     { "위성 (Esri)": satellite, "일반 (OSM)": osm },
     null, { collapsed: true }
   ).addTo(map);
+
+  var infoBlock = document.getElementById("infoBlock");
+  var gpxCard = document.getElementById("gpxCard");
+  var ocrCard = document.getElementById("ocrCard");
+  var finalBlock = document.getElementById("finalBlock");
 
   var statusText = document.getElementById("statusText");
   var distanceText = document.getElementById("distanceText");
@@ -283,6 +407,9 @@
   var playing = false;
   var playbackSpeed = 80;
   var followZoom = 17;
+
+  var gpxLoaded = false;
+  var ocrLoaded = false;
 
   function setStatus(msg, type) {
     statusText.textContent = msg;
@@ -555,8 +682,42 @@
     }
   }
 
+  var finalTitle = document.getElementById("finalTitle");
+  var finalDistance = document.getElementById("finalDistance");
+  var finalGpxTime = document.getElementById("finalGpxTime");
+  var finalGpxPace = document.getElementById("finalGpxPace");
+  var finalOcrTime = document.getElementById("finalOcrTime");
+  var finalOcrPace = document.getElementById("finalOcrPace");
+  var finalElev = document.getElementById("finalElev");
+
+  function updateSummaryIfReady() {
+    if (gpxLoaded && ocrLoaded) {
+      var distKm = totalDist / 1000;
+
+      finalTitle.textContent = runTitle.textContent;
+      finalDistance.textContent = distKm.toFixed(2);
+      finalGpxTime.textContent = formatTime(totalTime);
+      finalGpxPace.textContent = formatPace(totalTime, distKm);
+      finalOcrTime.textContent = document.getElementById("ocrTime").textContent;
+      finalOcrPace.textContent = document.getElementById("ocrPace").textContent;
+      finalElev.textContent = document.getElementById("ocrElev").textContent;
+
+      infoBlock.style.display = "none";
+      gpxCard.style.display = "none";
+      ocrCard.style.display = "none";
+      finalBlock.style.display = "block";
+    }
+  }
+
   document.getElementById("gpxFileInput").addEventListener("change", function(e) {
     var file = e.target.files[0];
+
+    gpxLoaded = false;
+    infoBlock.style.display = "";
+    gpxCard.style.display = "";
+    ocrCard.style.display = "";
+    finalBlock.style.display = "none";
+
     if (!file) {
       setStatus("파일이 선택되지 않았습니다.", "error");
       return;
@@ -582,6 +743,9 @@
         setStatus("로드 완료! 길이: " + (totalDist/1000).toFixed(2) + " km", "success");
         progress.disabled = false;
         playBtn.disabled = false;
+
+        gpxLoaded = true;
+        updateSummaryIfReady();
       } catch (err) {
         console.error(err);
         setStatus("GPX 처리 중 오류: " + err.message, "error");
@@ -606,6 +770,81 @@
     var ratio = progress.value / 1000;
     var idx = Math.round((trackPoints.length - 1) * ratio);
     updateVisual(idx);
+  });
+
+  var imgInput = document.getElementById("imgInput");
+  var ocrBtn = document.getElementById("ocrBtn");
+  var ocrStatus = document.getElementById("ocrStatus");
+  var ocrTime = document.getElementById("ocrTime");
+  var ocrDist = document.getElementById("ocrDist");
+  var ocrPace = document.getElementById("ocrPace");
+  var ocrElev = document.getElementById("ocrElev");
+  var currentImageFile = null;
+
+  imgInput.addEventListener("change", function(e) {
+    var f = e.target.files[0];
+    currentImageFile = f || null;
+    ocrLoaded = false;
+
+    infoBlock.style.display = "";
+    gpxCard.style.display = "";
+    ocrCard.style.display = "";
+    finalBlock.style.display = "none";
+
+    if (!f) {
+      ocrBtn.disabled = true;
+      ocrStatus.textContent = "이미지를 다시 선택하세요.";
+      return;
+    }
+    ocrBtn.disabled = false;
+    ocrStatus.textContent = "OCR 버튼을 눌러 인식합니다.";
+  });
+
+  function extractMetrics(text) {
+    var r = { time:null, dist:null, pace:null, elev:null };
+
+    var tm = text.match(/\b(\d{1,2}:\d{2}:\d{2})\b/);
+    if (tm) r.time = tm[1];
+
+    var dist = text.match(/(\d+(?:\.\d+)?)\s*km/i);
+    if (dist) r.dist = dist[1] + " km";
+
+    var pace = text.match(/(\d{1,2}'\d{2}"(?:\/km)?)/i);
+    if (pace) r.pace = pace[1];
+
+    var elev = text.match(/(\d+)\s*m/i);
+    if (elev) r.elev = elev[1] + " m";
+
+    return r;
+  }
+
+  ocrBtn.addEventListener("click", async function() {
+    if (!currentImageFile) return;
+
+    ocrBtn.disabled = true;
+    ocrStatus.textContent = "OCR 처리 중...";
+
+    try {
+      var result = await Tesseract.recognize(currentImageFile, "eng", {
+        logger: function(m){ console.log(m); }
+      });
+      var text = result.data.text || "";
+      var m = extractMetrics(text);
+
+      ocrTime.textContent = m.time || "-";
+      ocrDist.textContent = m.dist || "-";
+      ocrPace.textContent = m.pace || "-";
+      ocrElev.textContent = m.elev || "-";
+
+      ocrStatus.textContent = "OCR 완료";
+      ocrLoaded = true;
+      updateSummaryIfReady();
+    } catch (e) {
+      console.error(e);
+      ocrStatus.textContent = "OCR 오류 발생";
+    } finally {
+      if (currentImageFile) ocrBtn.disabled = false;
+    }
   });
 </script>
 </body>
