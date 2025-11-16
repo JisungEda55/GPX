@@ -28,7 +28,6 @@
       height: 100vh;
     }
 
-    /* 상단 컨트롤 패널 */
     .control-panel {
       position: absolute;
       top: 10px;
@@ -89,10 +88,10 @@
   <script src="https://unpkg.com/leaflet-gpx@1.7.0/gpx.min.js"></script>
 
   <script>
-    // 기본 지도 생성 (초기 위치는 전 세계가 보이도록)
+    // 기본 지도
     var map = L.map('map').setView([20, 0], 2);
 
-    // 위성 지도 타일 (Esri World Imagery)
+    // 위성 지도
     var satellite = L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       {
@@ -103,7 +102,7 @@
       }
     ).addTo(map);
 
-    // (선택) OSM 기본 타일도 옵션으로 추가
+    // OSM 기본지도 (옵션)
     var osm = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
@@ -112,7 +111,7 @@
       }
     );
 
-    // 레이어 컨트롤 (위성 / OSM 전환 가능)
+    // 레이어 전환 컨트롤
     L.control.layers(
       {
         '위성 지도 (Esri)': satellite,
@@ -123,7 +122,6 @@
     ).addTo(map);
 
     var currentGpxLayer = null;
-    var currentGpxUrl = null;
     var statusText = document.getElementById('statusText');
 
     function setStatus(msg, type) {
@@ -149,26 +147,15 @@
       reader.onload = function (e) {
         var gpxText = e.target.result;
 
-        // 이전 GPX 레이어가 있으면 제거
+        // 이전 레이어 제거
         if (currentGpxLayer) {
           map.removeLayer(currentGpxLayer);
           currentGpxLayer = null;
         }
 
-        // 이전 Blob URL 제거
-        if (currentGpxUrl) {
-          URL.revokeObjectURL(currentGpxUrl);
-          currentGpxUrl = null;
-        }
-
         try {
-          // 문자열 데이터를 Blob으로 만들고 Object URL을 생성
-          var blob = new Blob([gpxText], { type: 'application/gpx+xml' });
-          var url = URL.createObjectURL(blob);
-          currentGpxUrl = url;
-
-          // Leaflet GPX 레이어 생성
-          currentGpxLayer = new L.GPX(url, {
+          // 문자열 그대로 GPX 플러그인에 전달
+          currentGpxLayer = new L.GPX(gpxText, {
             async: true,
             marker_options: {
               startIconUrl: 'https://unpkg.com/leaflet-gpx@1.7.0/pin-icon-start.png',
@@ -176,18 +163,17 @@
               shadowUrl: 'https://unpkg.com/leaflet-gpx@1.7.0/pin-shadow.png'
             }
           })
-          .on('loaded', function (e) {
-            // 트랙 전체가 화면에 들어오도록
-            map.fitBounds(e.target.getBounds());
+          .on('loaded', function (evt) {
+            map.fitBounds(evt.target.getBounds());
             setStatus('로드 완료: ' + file.name, 'success');
           })
-          .on('error', function (e) {
-            console.error(e);
-            setStatus('GPX 파싱 중 오류가 발생했습니다. 파일을 확인해 주세요.', 'error');
+          .on('error', function (err) {
+            console.error('GPX 파싱 오류:', err);
+            setStatus('GPX 파싱 중 오류가 발생했습니다. 파일 형식을 확인해 주세요.', 'error');
           })
           .addTo(map);
         } catch (err) {
-          console.error(err);
+          console.error('GPX 처리 오류:', err);
           setStatus('GPX 파일을 처리하는 중 오류가 발생했습니다.', 'error');
         }
       };
