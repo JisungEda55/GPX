@@ -22,24 +22,19 @@
       overflow: hidden;
     }
 
-    /* ************************************************************
-     * [수정] 회전용 래퍼: #map에 적용되던 transform을 #mapWrapper로 이동
-     ************************************************************ */
+    /* 회전용 래퍼: 지도 클릭 및 마커 위치 오류 방지를 위해 #map 대신 #mapWrapper를 회전 */
     #mapWrapper {
       width: 100%;
       height: 100%;
       position: relative;
       overflow: hidden;
       background: #000;
-      /* #map에 있던 transition과 transform-origin을 #mapWrapper로 이동 */
       transform-origin: 50% 50%;
       transition: transform 0.15s linear;
     }
     #map {
       width: 100%;
       height: 100%;
-      /* Leaflet과의 충돌 방지를 위해 transform 관련 속성을 제거하거나 기본값 유지 */
-      /* transform: translate(0,0); 등 Leaflet이 관리 */
     }
 
     .top-panel {
@@ -292,7 +287,7 @@
         <span id="finalDistance">0.00</span>
         <span class="small">km</span>
       </div>
-      <div class="final-sub">
+      <div class="final-sub" id="finalSub">
         <div class="final-sub-line">
           <span class="final-sub-label">GPX 시간</span>
           <span id="finalGpxTime">-</span>
@@ -312,6 +307,10 @@
         <div class="final-sub-line">
           <span class="final-sub-label">등반 고도</span>
           <span id="finalElev">-</span>
+        </div>
+        <div class="final-sub-line">
+          <span class="final-sub-label">날씨 정보</span>
+          <span id="finalWeather">-</span>
         </div>
       </div>
     </div>
@@ -353,7 +352,7 @@
     null, { collapsed: true }
   ).addTo(map);
 
-  // [수정] mapEl 대신 mapWrapperEl 사용
+  // [수정] Leaflet 지도 대신 래퍼를 회전
   var mapWrapperEl = document.getElementById("mapWrapper"); 
   var mapRotation = 0;
 
@@ -396,11 +395,21 @@
   var playing = false;
   var playbackSpeed = 50;
   var followZoom = 17;
-  // [개선] currentHeading을 전역으로 관리하여 smoothAngle이 지속되도록 함
-  var currentHeading = null; 
+  var currentHeading = null; // 부드러운 회전을 위한 전역 변수
 
   var gpxLoaded = false;
   var ocrLoaded = false;
+  
+  // 최종 패널 DOM 요소
+  var finalTitle    = document.getElementById("finalTitle");
+  var finalDistance = document.getElementById("finalDistance");
+  var finalGpxTime  = document.getElementById("finalGpxTime");
+  var finalGpxPace  = document.getElementById("finalGpxPace");
+  var finalOcrTime  = document.getElementById("finalOcrTime");
+  var finalOcrPace  = document.getElementById("finalOcrPace");
+  var finalElev     = document.getElementById("finalElev");
+  var finalWeatherEl= document.getElementById("finalWeather");
+
 
   function setStatus(msg, type) {
     statusText.textContent = msg;
@@ -506,11 +515,11 @@
       var lng = lngSum / trackPoints.length;
 
       // 2) 시작 시각 기준 날짜 문자열
-      // [수정] GPX에 시간이 없을 경우, baseTime이 1970년이 아닌 현재 시각 기준이 되도록 prepareTrack에서 수정됨
+      // [수정] GPX에 시간이 없을 경우, 현재 시각 기준으로 타임스탬프 계산됨
       var startDate = new Date(trackPoints[0].tMs); 
       var dateStr = startDate.toISOString().slice(0, 10); // YYYY-MM-DD (UTC 기준)
 
-      // Open-Meteo Archive API (과거/당일 시간별 날씨, API key 불필요)
+      // Open-Meteo Archive API
       var url =
         "https://archive-api.open-meteo.com/v1/archive" +
         "?latitude=" + lat.toFixed(4) +
@@ -557,6 +566,10 @@
 
       weatherText.textContent =
         pieces.length ? pieces.join(" · ") : "날씨 데이터 없음";
+
+      // 날씨 로드가 완료되면 요약 카드 업데이트 시도 (OCR도 완료되었다면)
+      if (gpxLoaded && ocrLoaded) updateSummaryIfReady();
+
     } catch (e) {
       console.error(e);
       weatherText.textContent = "날씨 정보를 불러오지 못함";
@@ -621,7 +634,7 @@
     if (!hasTime) {
       var distKm = totalRaw / 1000;
       totalTime = distKm * 5 * 60 * 1000; // 5분/km 가정
-      // [수정] baseTime을 1970년 0시가 아닌 현재 시각을 기준으로 설정
+      // [수정] baseTime을 현재 시각 기준으로 설정하여 날씨 조회 오류 방지
       var assumedRunTime = new Date().getTime(); 
       var baseTime = assumedRunTime - totalTime; 
 
@@ -632,7 +645,7 @@
       totalTime = rawPts[rawPts.length - 1].tMs - rawPts[0].tMs;
     }
 
-    var dense = densifyTrack(rawPts, 5); // 5m 간격
+    var dense = densifyTrack(rawPts, 5); // 5m 간격으로 조밀하게 만듦
     trackPoints = dense;
 
     cumDist = [0];
@@ -653,9 +666,8 @@
     routeBounds = null;
 
     mapRotation = 0;
-    // [수정] #map이 아닌 #mapWrapper에 적용
     if (mapWrapperEl) mapWrapperEl.style.transform = "rotate(0deg)";
-    currentHeading = null; // heading 초기화
+    currentHeading = null; 
   }
 
   function drawRoute() {
@@ -700,14 +712,7 @@
 
     runnerMarker.setLatLng(center);
 
-    var latlngs;
-    if (playing) {
-      latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
-    } else {
-      // 재생 중이 아닐 때는 전체 경로를 보여주되, 현재 인덱스까지 강조
-      latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
-    }
-    // [확인] setLatLngs 사용은 올바름
+    var latlngs = trackPoints.slice(0, idx + 1).map(function(pt){ return [pt.lat, pt.lng]; });
     partialLayer.setLatLngs(latlngs);
 
     var rawHeading = null;
@@ -717,7 +722,7 @@
       rawHeading = bearingDegrees(trackPoints[idx - 1], trackPoints[idx]);
     }
     
-    // [개선] currentHeading을 smoothAngle을 통해 부드럽게 업데이트
+    // 부드러운 회전 적용
     if (rawHeading != null) {
       currentHeading = currentHeading === null 
         ? rawHeading 
@@ -726,9 +731,10 @@
       currentHeading = null;
     }
 
-
     var distM = cumDist[idx];
     var distKm = distM / 1000;
+    
+    // [수정 사항] 재생 중/정지 상태와 관계없이 현재 인덱스까지의 거리를 표시
     distanceText.textContent = distKm.toFixed(2);
 
     var elapsedMs = trackPoints[idx].tMs - trackPoints[0].tMs;
@@ -741,7 +747,7 @@
     currentTimeLabel.textContent = formatTimeShort(elapsedMs);
     totalTimeLabel.textContent = formatTimeShort(totalTime);
 
-    // 1) 카메라 위치 (앞쪽 60m / 부드럽게)
+    // 1) 카메라 위치
     if (playing) {
       var followTarget = L.latLng(center[0], center[1]);
 
@@ -763,15 +769,13 @@
       map.setView(smoothTarget, followZoom, { animate: false });
     }
 
-    // 2) 지도 회전 - 진행 방향이 위를 보도록
-    // [수정] #map이 아닌 #mapWrapper에 적용
+    // 2) 지도 회전
     if (mapWrapperEl) {
       var targetRotationDeg;
       if (playing && currentHeading != null) {
-        // currentHeading은 이미 smoothAngle이 적용된 값
-        targetRotationDeg = -currentHeading; // 진행 방향이 화면 위
+        targetRotationDeg = -currentHeading; 
       } else {
-        targetRotationDeg = 0; // 재생 안 할 때는 북쪽 위
+        targetRotationDeg = 0; 
       }
       mapRotation = smoothAngle(mapRotation, targetRotationDeg);
       mapWrapperEl.style.transform = "rotate(" + mapRotation + "deg)";
@@ -818,14 +822,6 @@
   }
 
   // ===== 요약 카드 =====
-  var finalTitle    = document.getElementById("finalTitle");
-  var finalDistance = document.getElementById("finalDistance");
-  var finalGpxTime  = document.getElementById("finalGpxTime");
-  var finalGpxPace  = document.getElementById("finalGpxPace");
-  var finalOcrTime  = document.getElementById("finalOcrTime");
-  var finalOcrPace  = document.getElementById("finalOcrPace");
-  var finalElev     = document.getElementById("finalElev");
-
   function updateSummaryIfReady() {
     if (gpxLoaded && ocrLoaded) {
       var distKm = totalDist / 1000;
@@ -837,6 +833,8 @@
       finalOcrTime.textContent  = document.getElementById("ocrTime").textContent;
       finalOcrPace.textContent  = document.getElementById("ocrPace").textContent;
       finalElev.textContent     = document.getElementById("ocrElev").textContent;
+      // [수정 사항] 날씨 정보 추가
+      finalWeatherEl.textContent= weatherText.textContent; 
 
       infoBlock.style.display = "none";
       gpxCard.style.display   = "none";
@@ -953,7 +951,7 @@
 
     // 페이스: M'SS" 또는 M:SS/km 형식
     var pace = text.match(/(\d{1,2}[':]\d{2}["]?(?:\/k[mi])?)/i);
-    if (pace) r.pace = pace[1].replace(':', "'").replace('"', '') + '"'; // 모두 M'SS" 형식으로 통일
+    if (pace) r.pace = pace[1].replace(':', "'").replace('"', '') + '"'; 
 
     // 등반 고도: 숫자 m
     var elev = text.match(/(\d+)\s*m/i);
@@ -975,14 +973,14 @@
     ocrElev.textContent = "-";
 
     try {
-      // [수정] 언어를 kor+eng로 설정하여 한국어 스크린샷 대응력 강화
+      // [수정] OCR 언어를 kor+eng로 설정
       var result = await Tesseract.recognize(currentImageFile, "kor+eng", {
         logger: function(m){ console.log(m); }
       });
       var text = result.data.text || "";
       var m = extractMetrics(text);
       
-      console.log("OCR Raw Text:", text); // 디버깅용
+      console.log("OCR Raw Text:", text); 
 
       ocrTime.textContent = m.time || "-";
       ocrDist.textContent = m.dist || "-";
