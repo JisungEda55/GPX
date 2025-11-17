@@ -39,12 +39,12 @@
       transition: transform 0.15s linear; 
     }
     
-    /* 🌟 추가된 부분: 재생 시 지도를 150%로 확장하여 여백 제거 */
+    /* 🌟 수정된 부분: 재생 시 지도를 300%로 확장하여 여백 제거 */
     #map.expanded {
-      width: 150%;
-      height: 150%;
-      /* 중심을 유지하기 위해 위치 조정 */
-      margin: -25% 0 0 -25%; 
+      width: 300%;
+      height: 300%;
+      /* 중심 유지를 위해 -100% 이동 */
+      margin: -100% 0 0 -100%; 
     }
     /* 🌟 */
 
@@ -366,14 +366,13 @@
     return current + diff * 0.2; // 0.2 = 회전 부드러움 정도
   }
   
-  // 🌟 변경된 함수: 회전 시 지도 크기를 확장하고 Leaflet에게 알림
+  // 🌟 변경 없음: 재생 시 지도 크기를 확장하고 Leaflet에게 알림
   function applyMapTransform() {
     if (mapEl) {
       // 재생 중이거나 회전 각도가 0이 아닐 때 expanded 클래스 추가
-      // (playing일 때만 확장하도록 변경할 수도 있지만, 부드러운 전환을 위해 회전 시에도 유지)
       const isExpanded = playing || mapRotation !== 0; 
       
-      // 1. 크기 확장/축소 클래스 토글 (CSS에서 width/height/margin 제어)
+      // 1. 크기 확장/축소 클래스 토글 (CSS에서 width/height/margin 제어 - 300%로 설정됨)
       mapEl.classList.toggle('expanded', isExpanded);
 
       // 2. 회전 적용
@@ -597,7 +596,7 @@
     routeBounds = null;
 
     mapRotation = 0;
-    // 🌟 변경: applyMapTransform 호출
+    // 변경 없음: applyMapTransform 호출하여 크기 복원
     applyMapTransform();
   }
 
@@ -705,7 +704,7 @@
       }
       mapRotation = smoothAngle(mapRotation, targetRotationDeg);
       
-      // 🌟 변경: 회전 및 크기 업데이트 적용
+      // 변경 없음: 회전 및 크기 업데이트 적용
       applyMapTransform();
     }
   }
@@ -721,7 +720,7 @@
       updateVisual(currentIndex);
     }
     
-    // 🌟 변경: 재생 시작 시 바로 크기/회전 업데이트 적용
+    // 변경 없음: 재생 시작 시 바로 크기/회전 업데이트 적용
     applyMapTransform();
 
     var p = trackPoints[currentIndex];
@@ -748,10 +747,10 @@
       map.fitBounds(routeBounds, { padding: [30,30] });
       // 지도 회전도 원래(북쪽 위)로 돌리기
       mapRotation = 0;
-      // 🌟 변경: 크기 복원 및 타일 새로고침
+      // 변경 없음: 크기 복원 및 타일 새로고침
       applyMapTransform(); 
     } else {
-      // 🌟 변경: 재생 중지 시에는 회전은 유지하고 expanded 클래스만 제거 (mapRotation !== 0일 경우)
+      // 변경 없음: 재생 중지 시에는 회전은 유지하고 expanded 클래스만 제거 (mapRotation !== 0일 경우)
       applyMapTransform();
     }
   }
@@ -761,8 +760,8 @@
   var finalDistance = document.getElementById("finalDistance");
   var finalGpxTime  = document.getElementById("finalGpxTime");
   var finalGpxPace  = document.getElementById("finalGpxPace");
-  var finalOcrTime  = document.getElementById("finalOcrTime");
-  var finalOcrPace  = document.getElementById("finalOcrPace");
+  var finalOcrTime  = document.getElementById("ocrTime");
+  var finalOcrPace  = document.getElementById("ocrPace");
   var finalElev     = document.getElementById("finalElev");
 
   function updateSummaryIfReady() {
