@@ -39,7 +39,7 @@
       transition: transform 0.15s linear; 
     }
     
-    /* 🌟 수정된 부분: 재생 시 지도를 300%로 확장하여 여백 제거 */
+    /* 🌟 지도 크기 300% 확장 (회전 시 여백 제거) */
     #map.expanded {
       width: 300%;
       height: 300%;
@@ -366,13 +366,12 @@
     return current + diff * 0.2; // 0.2 = 회전 부드러움 정도
   }
   
-  // 🌟 변경 없음: 재생 시 지도 크기를 확장하고 Leaflet에게 알림
   function applyMapTransform() {
     if (mapEl) {
       // 재생 중이거나 회전 각도가 0이 아닐 때 expanded 클래스 추가
       const isExpanded = playing || mapRotation !== 0; 
       
-      // 1. 크기 확장/축소 클래스 토글 (CSS에서 width/height/margin 제어 - 300%로 설정됨)
+      // 1. 크기 확장/축소 클래스 토글 (300%로 설정됨)
       mapEl.classList.toggle('expanded', isExpanded);
 
       // 2. 회전 적용
@@ -382,7 +381,6 @@
       map.invalidateSize({ pan: false, animate: false }); 
     }
   }
-  // 🌟
 
   // ===== DOM & 상태 =====
   var infoBlock = document.getElementById("infoBlock");
@@ -596,7 +594,6 @@
     routeBounds = null;
 
     mapRotation = 0;
-    // 변경 없음: applyMapTransform 호출하여 크기 복원
     applyMapTransform();
   }
 
@@ -672,18 +669,12 @@
     currentTimeLabel.textContent = formatTimeShort(elapsedMs);
     totalTimeLabel.textContent = formatTimeShort(totalTime);
 
-    // 1) 카메라 위치 (앞쪽 60m / 부드럽게)
+    // 1) 카메라 위치 (러너를 화면 중앙에 위치시키도록 수정됨)
     if (playing) {
-      var followTarget = L.latLng(center[0], center[1]);
-
-      if (currentHeading != null) {
-        var lookAheadMeters = 60;
-        var rad = currentHeading * Math.PI / 180;
-        var latRad = p.lat * Math.PI / 180;
-        var dLat = (lookAheadMeters * Math.cos(rad)) / 111111;
-        var dLon = (lookAheadMeters * Math.sin(rad)) / (111111 * Math.cos(latRad));
-        followTarget = L.latLng(p.lat + dLat, p.lng + dLon);
-      }
+      // 🌟 수정된 로직: 러너의 현재 위치를 목표 지점으로 설정하여 중앙에 위치시킵니다.
+      var followTarget = L.latLng(center[0], center[1]); 
+      // lookAhead 로직 제거됨.
+      // 🌟
 
       var currentCenter = map.getCenter();
       var alphaPos = 0.15;
@@ -704,7 +695,6 @@
       }
       mapRotation = smoothAngle(mapRotation, targetRotationDeg);
       
-      // 변경 없음: 회전 및 크기 업데이트 적용
       applyMapTransform();
     }
   }
@@ -720,7 +710,6 @@
       updateVisual(currentIndex);
     }
     
-    // 변경 없음: 재생 시작 시 바로 크기/회전 업데이트 적용
     applyMapTransform();
 
     var p = trackPoints[currentIndex];
@@ -747,10 +736,8 @@
       map.fitBounds(routeBounds, { padding: [30,30] });
       // 지도 회전도 원래(북쪽 위)로 돌리기
       mapRotation = 0;
-      // 변경 없음: 크기 복원 및 타일 새로고침
       applyMapTransform(); 
     } else {
-      // 변경 없음: 재생 중지 시에는 회전은 유지하고 expanded 클래스만 제거 (mapRotation !== 0일 경우)
       applyMapTransform();
     }
   }
@@ -762,7 +749,7 @@
   var finalGpxPace  = document.getElementById("finalGpxPace");
   var finalOcrTime  = document.getElementById("ocrTime");
   var finalOcrPace  = document.getElementById("ocrPace");
-  var finalElev     = document.getElementById("finalElev");
+  var finalElev     = document.getElementById("ocrElev");
 
   function updateSummaryIfReady() {
     if (gpxLoaded && ocrLoaded) {
