@@ -30,13 +30,23 @@
       overflow: hidden;
       background: #000;
     }
+    
+    /* 지도 기본 스타일 */
     #map {
       width: 100%;
       height: 100%;
       transform-origin: 50% 50%;
-      /* transform이 JavaScript에서 제어됨 */
-      transition: transform 0.15s linear;
+      transition: transform 0.15s linear; 
     }
+    
+    /* 🌟 추가된 부분: 재생 시 지도를 150%로 확장하여 여백 제거 */
+    #map.expanded {
+      width: 150%;
+      height: 150%;
+      /* 중심을 유지하기 위해 위치 조정 */
+      margin: -25% 0 0 -25%; 
+    }
+    /* 🌟 */
 
     .top-panel {
       position: absolute;
@@ -349,23 +359,31 @@
   ).addTo(map);
 
   var mapEl = document.getElementById("map");
-  // var mapWrapperEl = document.getElementById("mapWrapper"); // (사용 안 함)
   var mapRotation = 0;
-  var mapScale = 1; // 확대율 변수 추가
 
   function smoothAngle(current, target) {
     var diff = ((target - current + 540) % 360) - 180;
     return current + diff * 0.2; // 0.2 = 회전 부드러움 정도
   }
   
-  // 새로운 함수: 회전 및 스케일 적용
+  // 🌟 변경된 함수: 회전 시 지도 크기를 확장하고 Leaflet에게 알림
   function applyMapTransform() {
     if (mapEl) {
-      // 45도 회전 시 여백을 채우기 위한 최소 스케일은 약 1.414. 여기선 1.5로 설정
-      mapScale = (mapRotation !== 0) ? 1.5 : 1.0; 
-      mapEl.style.transform = "rotate(" + mapRotation + "deg) scale(" + mapScale + ")";
+      // 재생 중이거나 회전 각도가 0이 아닐 때 expanded 클래스 추가
+      // (playing일 때만 확장하도록 변경할 수도 있지만, 부드러운 전환을 위해 회전 시에도 유지)
+      const isExpanded = playing || mapRotation !== 0; 
+      
+      // 1. 크기 확장/축소 클래스 토글 (CSS에서 width/height/margin 제어)
+      mapEl.classList.toggle('expanded', isExpanded);
+
+      // 2. 회전 적용
+      mapEl.style.transform = "rotate(" + mapRotation + "deg)";
+      
+      // 3. Leaflet에게 크기 변경을 알림 (새로운 타일 로드 유도)
+      map.invalidateSize({ pan: false, animate: false }); 
     }
   }
+  // 🌟
 
   // ===== DOM & 상태 =====
   var infoBlock = document.getElementById("infoBlock");
@@ -579,8 +597,8 @@
     routeBounds = null;
 
     mapRotation = 0;
-    mapScale = 1; // 스케일 초기화
-    applyMapTransform(); // 회전 및 스케일 적용
+    // 🌟 변경: applyMapTransform 호출
+    applyMapTransform();
   }
 
   function drawRoute() {
@@ -687,7 +705,7 @@
       }
       mapRotation = smoothAngle(mapRotation, targetRotationDeg);
       
-      // 변경된 부분: 회전과 스케일 동시 적용
+      // 🌟 변경: 회전 및 크기 업데이트 적용
       applyMapTransform();
     }
   }
@@ -702,6 +720,9 @@
       currentIndex = 0;
       updateVisual(currentIndex);
     }
+    
+    // 🌟 변경: 재생 시작 시 바로 크기/회전 업데이트 적용
+    applyMapTransform();
 
     var p = trackPoints[currentIndex];
     map.flyTo([p.lat, p.lng], followZoom, { animate: true, duration: 0.8 });
@@ -727,7 +748,11 @@
       map.fitBounds(routeBounds, { padding: [30,30] });
       // 지도 회전도 원래(북쪽 위)로 돌리기
       mapRotation = 0;
-      applyMapTransform(); // 회전 및 스케일 적용
+      // 🌟 변경: 크기 복원 및 타일 새로고침
+      applyMapTransform(); 
+    } else {
+      // 🌟 변경: 재생 중지 시에는 회전은 유지하고 expanded 클래스만 제거 (mapRotation !== 0일 경우)
+      applyMapTransform();
     }
   }
 
