@@ -68,7 +68,20 @@
       margin-bottom: 4px;
     }
     .info-main .small { font-size: 18px; margin-left: 4px; }
-    .info-sub { font-size: 12px; opacity: .9; line-height: 1.4; }
+    .info-sub { 
+      font-size: 12px; 
+      opacity: .9; 
+      line-height: 1.4; 
+    }
+    /* [수정] 날씨 정보를 위해 줄 바꿈 강제 */
+    .info-sub p { 
+      margin: 0; 
+      padding: 0; 
+      line-height: 1.4;
+    }
+    .info-sub span { 
+      display: inline-block; /* span이 줄 바꿈에 유연하게 반응하도록 */
+    }
 
     .file-block label, .ocr-block label {
       font-size: 12px;
@@ -252,9 +265,12 @@
         <span class="small">km</span>
       </div>
       <div class="info-sub">
-        시간: <span id="timeText">00:00:00</span><br/>
-        페이스: <span id="paceText">--'--"</span> /km<br/>
-        날씨: <span id="weatherText">-</span>
+        <p>시간: <span id="timeText">00:00:00</span></p>
+        <p>페이스: <span id="paceText">--'--"</span> /km</p>
+        <div id="weatherContainer">
+          <p>날씨: <span id="weatherTextLine1">-</span></p>
+          <p><span id="weatherTextLine2"></span></p>
+        </div>
       </div>
     </div>
 
@@ -352,7 +368,6 @@
     null, { collapsed: true }
   ).addTo(map);
 
-  // [수정] Leaflet 지도 대신 래퍼를 회전
   var mapWrapperEl = document.getElementById("mapWrapper"); 
   var mapRotation = 0;
 
@@ -372,7 +387,10 @@
   var timeText    = document.getElementById("timeText");
   var paceText    = document.getElementById("paceText");
   var runTitle    = document.getElementById("runTitle");
-  var weatherText = document.getElementById("weatherText");
+  
+  // [수정] 날씨 정보를 두 개의 라인으로 분리하여 관리
+  var weatherTextLine1 = document.getElementById("weatherTextLine1");
+  var weatherTextLine2 = document.getElementById("weatherTextLine2");
 
   var progress           = document.getElementById("progress");
   var playBtn            = document.getElementById("playBtn");
@@ -395,7 +413,7 @@
   var playing = false;
   var playbackSpeed = 50;
   var followZoom = 17;
-  var currentHeading = null; // 부드러운 회전을 위한 전역 변수
+  var currentHeading = null;
 
   var gpxLoaded = false;
   var ocrLoaded = false;
@@ -500,10 +518,15 @@
 
   // ===== 날씨 조회 (Open-Meteo, API Key 없음) =====
   async function fetchWeatherForRun() {
+    // [수정] 날씨 텍스트 엘리먼트 초기화
+    weatherTextLine1.textContent = "-";
+    weatherTextLine2.textContent = "";
+    
     try {
-      if (!trackPoints.length || !window.fetch || !weatherText) return;
+      if (!trackPoints.length || !window.fetch) return;
 
-      weatherText.textContent = "불러오는 중...";
+      weatherTextLine1.textContent = "불러오는 중...";
+      weatherTextLine2.textContent = "";
 
       // 1) 전체 트랙의 중심 좌표 (대략적인 위치)
       var latSum = 0, lngSum = 0;
@@ -515,7 +538,6 @@
       var lng = lngSum / trackPoints.length;
 
       // 2) 시작 시각 기준 날짜 문자열
-      // [수정] GPX에 시간이 없을 경우, 현재 시각 기준으로 타임스탬프 계산됨
       var startDate = new Date(trackPoints[0].tMs); 
       var dateStr = startDate.toISOString().slice(0, 10); // YYYY-MM-DD (UTC 기준)
 
@@ -563,16 +585,20 @@
       if (typeof hum   === "number") pieces.push("습도 " + hum.toFixed(0) + "%");
       if (typeof wind  === "number") pieces.push("풍속 " + wind.toFixed(1) + " m/s");
       if (typeof rain  === "number" && rain > 0) pieces.push("강수 " + rain.toFixed(1) + " mm");
-
-      weatherText.textContent =
-        pieces.length ? pieces.join(" · ") : "날씨 데이터 없음";
+      
+      // [수정] 날씨 정보를 두 줄로 분할
+      var half = Math.ceil(pieces.length / 2);
+      
+      weatherTextLine1.textContent = pieces.slice(0, half).join(" · ") || "-";
+      weatherTextLine2.textContent = pieces.slice(half).join(" · ");
 
       // 날씨 로드가 완료되면 요약 카드 업데이트 시도 (OCR도 완료되었다면)
       if (gpxLoaded && ocrLoaded) updateSummaryIfReady();
 
     } catch (e) {
       console.error(e);
-      weatherText.textContent = "날씨 정보를 불러오지 못함";
+      weatherTextLine1.textContent = "날씨 정보를";
+      weatherTextLine2.textContent = "불러오지 못함";
     }
   }
 
@@ -634,7 +660,6 @@
     if (!hasTime) {
       var distKm = totalRaw / 1000;
       totalTime = distKm * 5 * 60 * 1000; // 5분/km 가정
-      // [수정] baseTime을 현재 시각 기준으로 설정하여 날씨 조회 오류 방지
       var assumedRunTime = new Date().getTime(); 
       var baseTime = assumedRunTime - totalTime; 
 
@@ -734,7 +759,7 @@
     var distM = cumDist[idx];
     var distKm = distM / 1000;
     
-    // [수정 사항] 재생 중/정지 상태와 관계없이 현재 인덱스까지의 거리를 표시
+    // [수정 사항] 재생 중/정지 상태와 관계없이 현재 인덱스까지의 거리를 표시 (재생바 이동 및 재생 시 거리 변화 반영)
     distanceText.textContent = distKm.toFixed(2);
 
     var elapsedMs = trackPoints[idx].tMs - trackPoints[0].tMs;
@@ -811,7 +836,7 @@
     playBtn.textContent = "▶";
     if (playTimer) { clearInterval(playTimer); playTimer = null; }
 
-    if (trackPoints.length) updateVisual(currentIndex);
+    if (trackPoints.length) updateVisual(currentIndex); // 현재 시점 업데이트 유지
 
     if (resetToWhole && routeBounds) {
       map.fitBounds(routeBounds, { padding: [30,30] });
@@ -833,8 +858,12 @@
       finalOcrTime.textContent  = document.getElementById("ocrTime").textContent;
       finalOcrPace.textContent  = document.getElementById("ocrPace").textContent;
       finalElev.textContent     = document.getElementById("ocrElev").textContent;
-      // [수정 사항] 날씨 정보 추가
-      finalWeatherEl.textContent= weatherText.textContent; 
+      
+      // [수정 사항] 날씨 정보 합쳐서 최종 패널에 한 줄로 표시
+      var weatherLine1 = weatherTextLine1.textContent.replace("날씨: ", "").trim();
+      var weatherLine2 = weatherTextLine2.textContent.trim();
+      
+      finalWeatherEl.textContent = weatherLine1 + (weatherLine2 ? ' / ' + weatherLine2 : '');
 
       infoBlock.style.display = "none";
       gpxCard.style.display   = "none";
@@ -852,7 +881,10 @@
     gpxCard.style.display   = "";
     ocrCard.style.display   = "";
     finalBlock.style.display= "none";
-    if (weatherText) weatherText.textContent = "-";
+    
+    // [수정] 날씨 엘리먼트 초기화
+    weatherTextLine1.textContent = "-";
+    weatherTextLine2.textContent = "";
 
     if (!file) { setStatus("파일이 선택되지 않았습니다.", "error"); return; }
     if (!file.name.toLowerCase().endsWith(".gpx")) {
@@ -901,9 +933,10 @@
     else        startPlayback();
   });
 
+  // [수정] 재생바를 움직일 때 작동하도록 보장 (pausePlayback이 updateVisual을 호출하므로, 문제 없음)
   progress.addEventListener("input", function() {
     if (!trackPoints.length) return;
-    pausePlayback(false); // 슬라이더 움직일 때 일시정지
+    pausePlayback(false); // 슬라이더 움직일 때 일시정지 (자동으로 updateVisual 호출)
     var ratio = progress.value / 1000;
     var idx   = Math.round((trackPoints.length - 1) * ratio);
     updateVisual(idx);
@@ -973,7 +1006,7 @@
     ocrElev.textContent = "-";
 
     try {
-      // [수정] OCR 언어를 kor+eng로 설정
+      // [유지] OCR 언어를 kor+eng로 설정
       var result = await Tesseract.recognize(currentImageFile, "kor+eng", {
         logger: function(m){ console.log(m); }
       });
