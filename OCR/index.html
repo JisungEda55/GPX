@@ -23,23 +23,22 @@
     }
 
     /* 회전 + 여백 제거용 래퍼 */
-#mapWrapper {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  overflow: hidden;
-  background: #000;
-}
-
-#map {
-  /* 지도 박스를 300%로 키우고 중앙에 배치 */
-  width: 300%;
-  height: 300%;
-  margin-left: -100%;  /* (300 - 100) / 2 */
-  margin-top: -100%;
-  transform-origin: 50% 50%;
-  transition: transform 0.15s linear;
-}
+    #mapWrapper {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+    #map {
+      /* 지도 박스를 300%로 키워서, 회전해도 항상 화면이 지도 타일로 채워지게 */
+      width: 300%;
+      height: 300%;
+      margin-left: -100%;  /* (300 - 100) / 2 */
+      margin-top: -100%;
+      transform-origin: 50% 50%;
+      transition: transform 0.15s linear;
+    }
 
     .top-panel {
       position: absolute;
@@ -333,6 +332,7 @@
 <script src="https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 
 <script>
+  // ===== 지도 기본 =====
   var map = L.map('map').setView([37.5, 127], 12);
 
   var satellite = L.tileLayer(
@@ -358,6 +358,7 @@
     return current + diff * 0.2;
   }
 
+  // ===== DOM & 상태 =====
   var infoBlock = document.getElementById("infoBlock");
   var gpxCard  = document.getElementById("gpxCard");
   var ocrCard  = document.getElementById("ocrCard");
@@ -388,7 +389,7 @@
   var playTimer = null;
   var currentIndex = 0;
   var playing = false;
-  var playbackSpeed = 50;
+  var playbackSpeed = 50;   // 재생 속도
   var followZoom = 17;
   var currentHeading = null;
 
@@ -482,6 +483,7 @@
     return result;
   }
 
+  // ===== GPX 파싱/준비 =====
   function parseGpx(gpxText) {
     hasTime = false;
 
@@ -537,7 +539,7 @@
 
     if (!hasTime) {
       var distKm = totalRaw / 1000;
-      totalTime = distKm * 5 * 60 * 1000;
+      totalTime = distKm * 5 * 60 * 1000; // 5분/km 가정
       var baseTime = 0;
       for (var k = 0; k < rawPts.length; k++) {
         rawPts[k].tMs = baseTime + totalTime * (cumRaw[k] / totalRaw);
@@ -602,6 +604,7 @@
     runnerMarker = L.marker(latlngs[0], { icon: runnerIcon }).addTo(map);
   }
 
+  // ===== 화면 업데이트 =====
   function updateVisual(idx) {
     idx = Math.max(0, Math.min(idx, trackPoints.length - 1));
     currentIndex = idx;
@@ -641,6 +644,7 @@
     currentTimeLabel.textContent = formatTimeShort(elapsedMs);
     totalTimeLabel.textContent = formatTimeShort(totalTime);
 
+    // 카메라 위치: 진행 방향 앞쪽을 부드럽게 따라가기
     if (playing) {
       var followTarget = L.latLng(center[0], center[1]);
 
@@ -662,6 +666,7 @@
       map.setView(smoothTarget, followZoom, { animate: false });
     }
 
+    // 지도 회전: 진행 방향이 화면 위를 향하게
     if (mapEl) {
       var targetRotationDeg;
       if (playing && currentHeading != null) {
@@ -691,7 +696,7 @@
     if (playTimer) clearInterval(playTimer);
     playTimer = setInterval(function() {
       if (currentIndex >= trackPoints.length - 1) {
-        pausePlayback(true);
+        pausePlayback(true); // 끝까지 가면 전체 경로로 복귀
         return;
       }
       updateVisual(currentIndex + 1);
@@ -712,6 +717,7 @@
     }
   }
 
+  // ===== 요약 카드 =====
   var finalTitle    = document.getElementById("finalTitle");
   var finalDistance = document.getElementById("finalDistance");
   var finalGpxTime  = document.getElementById("finalGpxTime");
@@ -739,6 +745,7 @@
     }
   }
 
+  // ===== GPX 이벤트 =====
   document.getElementById("gpxFileInput").addEventListener("change", function(e) {
     var file = e.target.files[0];
 
@@ -799,6 +806,7 @@
     updateVisual(idx);
   });
 
+  // ===== OCR =====
   var imgInput   = document.getElementById("imgInput");
   var ocrBtn     = document.getElementById("ocrBtn");
   var ocrStatus  = document.getElementById("ocrStatus");
