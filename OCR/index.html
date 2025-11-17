@@ -22,7 +22,7 @@
       overflow: hidden;
     }
 
-    /* 회전용 래퍼 */
+    /* 회전 + 여백 제거용 래퍼 */
     #mapWrapper {
       width: 100%;
       height: 100%;
@@ -31,8 +31,11 @@
       background: #000;
     }
     #map {
-      width: 100%;
-      height: 100%;
+      /* 화면보다 크게 깔아서 회전해도 항상 지도가 꽉 차게 */
+      width: 160%;
+      height: 160%;
+      margin-left: -30%;
+      margin-top: -30%;
       transform-origin: 50% 50%;
       transition: transform 0.15s linear;
     }
@@ -150,7 +153,7 @@
       background: #fff;
     }
 
-    /* 두근두근 원 마커 */
+    /* 두근거리는 원 마커 */
     .runner-marker {
       position: relative;
       width: 40px;
@@ -240,12 +243,10 @@
 </head>
 <body>
 <div id="app">
-  <!-- 회전되는 지도 영역 -->
   <div id="mapWrapper">
     <div id="map"></div>
   </div>
 
-  <!-- 상단 패널들 -->
   <div class="top-panel">
     <div class="info-block" id="infoBlock">
       <h1 id="runTitle">러닝 리플레이</h1>
@@ -313,7 +314,6 @@
     </div>
   </div>
 
-  <!-- 하단 재생 컨트롤 -->
   <div class="bottom-panel">
     <div class="controls">
       <button class="play-btn" id="playBtn" disabled>▶</button>
@@ -332,7 +332,6 @@
 <script src="https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 
 <script>
-  // ===== 지도 기본 =====
   var map = L.map('map').setView([37.5, 127], 12);
 
   var satellite = L.tileLayer(
@@ -355,10 +354,9 @@
 
   function smoothAngle(current, target) {
     var diff = ((target - current + 540) % 360) - 180;
-    return current + diff * 0.2; // 0.2 = 회전 부드러움 정도
+    return current + diff * 0.2;
   }
 
-  // ===== DOM & 상태 =====
   var infoBlock = document.getElementById("infoBlock");
   var gpxCard  = document.getElementById("gpxCard");
   var ocrCard  = document.getElementById("ocrCard");
@@ -483,7 +481,6 @@
     return result;
   }
 
-  // ===== GPX 파싱 =====
   function parseGpx(gpxText) {
     hasTime = false;
 
@@ -527,7 +524,6 @@
     return pts;
   }
 
-  // ===== 트랙 준비 =====
   function prepareTrack(rawPts) {
     var cumRaw = [0];
     var totalRaw = 0;
@@ -540,7 +536,7 @@
 
     if (!hasTime) {
       var distKm = totalRaw / 1000;
-      totalTime = distKm * 5 * 60 * 1000; // 5분/km 가정
+      totalTime = distKm * 5 * 60 * 1000;
       var baseTime = 0;
       for (var k = 0; k < rawPts.length; k++) {
         rawPts[k].tMs = baseTime + totalTime * (cumRaw[k] / totalRaw);
@@ -549,7 +545,7 @@
       totalTime = rawPts[rawPts.length - 1].tMs - rawPts[0].tMs;
     }
 
-    var dense = densifyTrack(rawPts, 5); // 5m 간격
+    var dense = densifyTrack(rawPts, 5);
     trackPoints = dense;
 
     cumDist = [0];
@@ -605,7 +601,6 @@
     runnerMarker = L.marker(latlngs[0], { icon: runnerIcon }).addTo(map);
   }
 
-  // ===== 화면 업데이트 =====
   function updateVisual(idx) {
     idx = Math.max(0, Math.min(idx, trackPoints.length - 1));
     currentIndex = idx;
@@ -645,7 +640,6 @@
     currentTimeLabel.textContent = formatTimeShort(elapsedMs);
     totalTimeLabel.textContent = formatTimeShort(totalTime);
 
-    // 1) 카메라 위치 (앞쪽 60m / 부드럽게)
     if (playing) {
       var followTarget = L.latLng(center[0], center[1]);
 
@@ -667,13 +661,12 @@
       map.setView(smoothTarget, followZoom, { animate: false });
     }
 
-    // 2) 지도 회전 - 진행 방향이 위를 보도록
     if (mapEl) {
       var targetRotationDeg;
       if (playing && currentHeading != null) {
-        targetRotationDeg = -currentHeading; // 진행 방향이 화면 위
+        targetRotationDeg = -currentHeading;
       } else {
-        targetRotationDeg = 0; // 재생 안 할 때는 북쪽 위
+        targetRotationDeg = 0;
       }
       mapRotation = smoothAngle(mapRotation, targetRotationDeg);
       mapEl.style.transform = "rotate(" + mapRotation + "deg)";
@@ -697,7 +690,7 @@
     if (playTimer) clearInterval(playTimer);
     playTimer = setInterval(function() {
       if (currentIndex >= trackPoints.length - 1) {
-        pausePlayback(true); // 끝까지 가면 전체 경로로 복귀
+        pausePlayback(true);
         return;
       }
       updateVisual(currentIndex + 1);
@@ -713,13 +706,11 @@
 
     if (resetToWhole && routeBounds) {
       map.fitBounds(routeBounds, { padding: [30,30] });
-      // 지도 회전도 원래(북쪽 위)로 돌리기
       mapRotation = 0;
       if (mapEl) mapEl.style.transform = "rotate(0deg)";
     }
   }
 
-  // ===== 요약 카드 =====
   var finalTitle    = document.getElementById("finalTitle");
   var finalDistance = document.getElementById("finalDistance");
   var finalGpxTime  = document.getElementById("finalGpxTime");
@@ -747,7 +738,6 @@
     }
   }
 
-  // ===== GPX 이벤트 =====
   document.getElementById("gpxFileInput").addEventListener("change", function(e) {
     var file = e.target.files[0];
 
@@ -797,7 +787,7 @@
 
   playBtn.addEventListener("click", function() {
     if (!trackPoints.length) return;
-    if (playing) pausePlayback(false); // 직접 멈출 땐 현재 시점 유지
+    if (playing) pausePlayback(false);
     else        startPlayback();
   });
 
@@ -808,7 +798,6 @@
     updateVisual(idx);
   });
 
-  // ===== OCR =====
   var imgInput   = document.getElementById("imgInput");
   var ocrBtn     = document.getElementById("ocrBtn");
   var ocrStatus  = document.getElementById("ocrStatus");
