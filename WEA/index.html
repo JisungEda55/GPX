@@ -696,7 +696,8 @@
     } else {
       latlngs = trackPoints.map(function(pt){ return [pt.lat, pt.lng]; });
     }
-    partialLayer.setLatlngs(latlngs);
+    // 여기 오타 수정: setLatLngs
+    partialLayer.setLatLngs(latlngs);
 
     var heading = null;
     if (idx < trackPoints.length - 1) {
