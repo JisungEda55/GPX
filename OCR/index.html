@@ -22,7 +22,7 @@
       overflow: hidden;
     }
 
-    /* 회전 + 여백 제거용 래퍼 */
+    /* 회전용 래퍼 */
     #mapWrapper {
       width: 100%;
       height: 100%;
@@ -34,6 +34,7 @@
       width: 100%;
       height: 100%;
       transform-origin: 50% 50%;
+      /* transform이 JavaScript에서 제어됨 */
       transition: transform 0.15s linear;
     }
 
@@ -150,7 +151,7 @@
       background: #fff;
     }
 
-    /* 두근거리는 원 마커 */
+    /* 두근두근 원 마커 */
     .runner-marker {
       position: relative;
       width: 40px;
@@ -329,9 +330,6 @@
 <script src="https://unpkg.com/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 
 <script>
-  // ===== 상수: 시각적인 확대 배율 =====
-  const MAP_SCALE = 3; // 3배(= 300%)
-
   // ===== 지도 기본 =====
   var map = L.map('map').setView([37.5, 127], 12);
 
@@ -351,13 +349,22 @@
   ).addTo(map);
 
   var mapEl = document.getElementById("map");
+  // var mapWrapperEl = document.getElementById("mapWrapper"); // (사용 안 함)
   var mapRotation = 0;
-  // 초기 스케일 적용
-  mapEl.style.transform = "scale(" + MAP_SCALE + ") rotate(0deg)";
+  var mapScale = 1; // 확대율 변수 추가
 
   function smoothAngle(current, target) {
     var diff = ((target - current + 540) % 360) - 180;
-    return current + diff * 0.2;
+    return current + diff * 0.2; // 0.2 = 회전 부드러움 정도
+  }
+  
+  // 새로운 함수: 회전 및 스케일 적용
+  function applyMapTransform() {
+    if (mapEl) {
+      // 45도 회전 시 여백을 채우기 위한 최소 스케일은 약 1.414. 여기선 1.5로 설정
+      mapScale = (mapRotation !== 0) ? 1.5 : 1.0; 
+      mapEl.style.transform = "rotate(" + mapRotation + "deg) scale(" + mapScale + ")";
+    }
   }
 
   // ===== DOM & 상태 =====
@@ -426,11 +433,11 @@
 
   function formatPace(ms, distKm) {
     if (!distKm || distKm <= 0) return "--'--\"";
-      var paceMsPerKm = ms / distKm;
-      var sec = Math.round(paceMsPerKm / 1000);
-      var m = Math.floor(sec / 60);
-      var s = sec % 60;
-      return String(m) + "'" + String(s).padStart(2, "0") + "\"";
+    var paceMsPerKm = ms / distKm;
+    var sec = Math.round(paceMsPerKm / 1000);
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return String(m) + "'" + String(s).padStart(2, "0") + "\"";
   }
 
   function distanceMeters(a, b) {
@@ -485,7 +492,7 @@
     return result;
   }
 
-  // ===== GPX 파싱/준비 =====
+  // ===== GPX 파싱 =====
   function parseGpx(gpxText) {
     hasTime = false;
 
@@ -529,6 +536,7 @@
     return pts;
   }
 
+  // ===== 트랙 준비 =====
   function prepareTrack(rawPts) {
     var cumRaw = [0];
     var totalRaw = 0;
@@ -550,7 +558,7 @@
       totalTime = rawPts[rawPts.length - 1].tMs - rawPts[0].tMs;
     }
 
-    var dense = densifyTrack(rawPts, 5);
+    var dense = densifyTrack(rawPts, 5); // 5m 간격
     trackPoints = dense;
 
     cumDist = [0];
@@ -571,7 +579,8 @@
     routeBounds = null;
 
     mapRotation = 0;
-    if (mapEl) mapEl.style.transform = "scale(" + MAP_SCALE + ") rotate(0deg)";
+    mapScale = 1; // 스케일 초기화
+    applyMapTransform(); // 회전 및 스케일 적용
   }
 
   function drawRoute() {
@@ -646,7 +655,7 @@
     currentTimeLabel.textContent = formatTimeShort(elapsedMs);
     totalTimeLabel.textContent = formatTimeShort(totalTime);
 
-    // 카메라 위치: 진행 방향 앞쪽을 부드럽게 따라가기
+    // 1) 카메라 위치 (앞쪽 60m / 부드럽게)
     if (playing) {
       var followTarget = L.latLng(center[0], center[1]);
 
@@ -668,16 +677,18 @@
       map.setView(smoothTarget, followZoom, { animate: false });
     }
 
-    // 지도 회전: 진행 방향이 화면 위를 향하게 (항상 3배 스케일 유지)
+    // 2) 지도 회전 - 진행 방향이 위를 보도록
     if (mapEl) {
       var targetRotationDeg;
       if (playing && currentHeading != null) {
-        targetRotationDeg = -currentHeading;
+        targetRotationDeg = -currentHeading; // 진행 방향이 화면 위
       } else {
-        targetRotationDeg = 0;
+        targetRotationDeg = 0; // 재생 안 할 때는 북쪽 위
       }
       mapRotation = smoothAngle(mapRotation, targetRotationDeg);
-      mapEl.style.transform = "scale(" + MAP_SCALE + ") rotate(" + mapRotation + "deg)";
+      
+      // 변경된 부분: 회전과 스케일 동시 적용
+      applyMapTransform();
     }
   }
 
@@ -714,8 +725,9 @@
 
     if (resetToWhole && routeBounds) {
       map.fitBounds(routeBounds, { padding: [30,30] });
+      // 지도 회전도 원래(북쪽 위)로 돌리기
       mapRotation = 0;
-      if (mapEl) mapEl.style.transform = "scale(" + MAP_SCALE + ") rotate(0deg)";
+      applyMapTransform(); // 회전 및 스케일 적용
     }
   }
 
@@ -797,7 +809,7 @@
 
   playBtn.addEventListener("click", function() {
     if (!trackPoints.length) return;
-    if (playing) pausePlayback(false);
+    if (playing) pausePlayback(false); // 직접 멈출 땐 현재 시점 유지
     else        startPlayback();
   });
 
