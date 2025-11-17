@@ -39,15 +39,14 @@
       transition: transform 0.15s linear; 
     }
     
-    /* 🌟 지도 크기 300% 확장 (회전 시 여백 제거) */
+    /* 지도 크기 300% 확장 (회전 시 여백 제거) */
     #map.expanded {
       width: 300%;
       height: 300%;
       /* 중심 유지를 위해 -100% 이동 */
       margin: -100% 0 0 -100%; 
     }
-    /* 🌟 */
-
+    
     .top-panel {
       position: absolute;
       top: 10px;
@@ -671,18 +670,22 @@
 
     // 1) 카메라 위치 (러너를 화면 중앙에 위치시키도록 수정됨)
     if (playing) {
-      // 🌟 수정된 로직: 러너의 현재 위치를 목표 지점으로 설정하여 중앙에 위치시킵니다.
+      // 러너의 현재 위치를 목표 지점으로 설정하여 중앙에 위치시킵니다.
       var followTarget = L.latLng(center[0], center[1]); 
-      // lookAhead 로직 제거됨.
-      // 🌟
-
+      
       var currentCenter = map.getCenter();
       var alphaPos = 0.15;
       var smoothLat = currentCenter.lat + (followTarget.lat - currentCenter.lat) * alphaPos;
       var smoothLng = currentCenter.lng + (followTarget.lng - currentCenter.lng) * alphaPos;
       var smoothTarget = L.latLng(smoothLat, smoothLng);
 
+      // 맵의 중앙을 러너의 위치로 설정합니다.
       map.setView(smoothTarget, followZoom, { animate: false });
+      
+      // 🌟 추가된 로직: 맵 객체를 강제로 아래로 패닝하여 러너 마커를 시각적 중앙에 위치시킵니다.
+      // (Y축 양수 100px은 맵을 아래로 밀고, 결과적으로 러너는 시각적으로 위로 올라옵니다.)
+      map.panBy([0, 100], { animate: false });
+      // 🌟
     }
 
     // 2) 지도 회전 - 진행 방향이 위를 보도록
